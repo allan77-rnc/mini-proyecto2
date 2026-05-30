@@ -35,11 +35,11 @@ export const api = {
     const { data } = await client.get<T>(path);
     return data;
   },
-  async post<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  async post<T>(path: string, body?: unknown): Promise<T> {
     const { data } = await client.post<T>(path, body);
     return data;
   },
-  async patch<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  async patch<T>(path: string, body?: unknown): Promise<T> {
     const { data } = await client.patch<T>(path, body);
     return data;
   },
