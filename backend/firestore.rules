@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────
+    // users/{uid}
+    // ─────────────────────────────────────────────
+    // All writes are done server-side via Admin SDK (bypasses these rules).
+    // Read access: only the owner can read their own profile.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Admin SDK only
+    }
+
+    // ─────────────────────────────────────────────
+    // usernames/{username}
+    // ─────────────────────────────────────────────
+    // Public read so the frontend can check availability without a backend round-trip.
+    // Writes are server-side only to prevent race conditions.
+    match /usernames/{username} {
+      allow read: if true;
+      allow write: if false; // Admin SDK only
+    }
+  }
+}
