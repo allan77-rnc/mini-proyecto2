@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../contexts/ToastContext';
 import { ToastContainer } from '../components/Toast';
@@ -13,6 +13,7 @@ import {
   IconAlertCircle,
   IconMail2,
   IconCheckCircle,
+  IconGoogle,
 } from '../components/icons';
 
 const AUTH_ERROR_MAP: Record<string, string> = {
@@ -38,7 +39,7 @@ function validateEmail(email: string): string | null {
 type Mode = 'login' | 'forgot' | 'forgot-sent';
 
 export function LoginPage() {
-  const { user, firebaseUid, initialized, signIn, sendResetEmail } = useAuth();
+  const { user, firebaseUid, initialized, signIn, sendResetEmail, signInWithGoogle } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -47,15 +48,14 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [resetEmail, setResetEmail] = useState('');
   const [resetEmailError, setResetEmailError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialized && firebaseUid && user) {
-      navigate('/dashboard', { replace: true });
-    }
+    if (initialized && firebaseUid && user) navigate('/dashboard', { replace: true });
   }, [initialized, firebaseUid, user, navigate]);
 
   async function handleSignIn(e: React.FormEvent) {
@@ -96,221 +96,250 @@ export function LoginPage() {
     }
   }
 
+  async function handleGoogle() {
+    setGoogleLoading(true);
+    try {
+      const { needsProfile } = await signInWithGoogle();
+      navigate(needsProfile ? '/complete-profile' : '/dashboard', { replace: true });
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      if (code !== 'auth/popup-closed-by-user') {
+        showToast('error', 'Error', 'No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center px-4 py-8">
       <ToastContainer />
 
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm px-8 py-10">
-        {/* Logo */}
-        <div className="flex justify-center mb-5">
-          <div className="w-16 h-16 bg-[#1e3252] rounded-2xl flex items-center justify-center shadow-md">
-            <IconGraduationCap size={32} className="text-white" />
+      {/* Back button */}
+      <div className="w-full max-w-sm mb-3">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+        >
+          ← Volver al inicio
+        </button>
+      </div>
+
+      {/* Card */}
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="px-8 py-10">
+          {/* Logo */}
+          <div className="flex justify-center mb-5">
+            <div className="w-14 h-14 bg-[#1e3252] rounded-2xl flex items-center justify-center shadow-md">
+              <IconGraduationCap size={28} className="text-white" />
+            </div>
           </div>
-        </div>
 
-        {/* Heading */}
-        <div className="text-center mb-7">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome to<br />StudySphere
-          </h1>
-          <p className="text-gray-500 text-xs leading-relaxed">
-            Connect, collaborate, and conquer your coursework together.
-          </p>
-        </div>
+          {/* Heading */}
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              Welcome to<br />StudySphere
+            </h1>
+            <p className="text-gray-500 text-xs leading-relaxed">
+              Connect, collaborate, and conquer your coursework together.
+            </p>
+          </div>
 
-        {/* ── LOGIN FORM ── */}
-        {mode === 'login' && (
-          <form onSubmit={handleSignIn} noValidate className="space-y-4">
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Correo Electrónico Institucional
-              </label>
-              <div
-                className={`flex items-center border rounded-xl bg-white transition-colors ${
-                  emailError
-                    ? 'border-red-500 ring-1 ring-red-500'
-                    : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                }`}
-              >
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => { setEmail(e.target.value); setEmailError(null); }}
-                  placeholder="student@university.edu"
-                  autoComplete="email"
-                  className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                />
-                <span className="pr-3 flex-shrink-0">
-                  {emailError ? (
-                    <IconAlertCircle size={18} className="text-red-500" />
-                  ) : (
-                    <IconMail size={18} className="text-gray-400" />
-                  )}
-                </span>
-              </div>
-              {emailError && <p className="mt-1.5 text-xs text-red-600">{emailError}</p>}
-            </div>
+          {/* ── LOGIN FORM ── */}
+          {mode === 'login' && (
+            <div className="space-y-4">
+              <form onSubmit={handleSignIn} noValidate className="space-y-4">
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Correo Electrónico Institucional
+                  </label>
+                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${
+                    emailError
+                      ? 'border-red-500 ring-1 ring-red-500'
+                      : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
+                  }`}>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => { setEmail(e.target.value); setEmailError(null); }}
+                      placeholder="student@university.edu"
+                      autoComplete="email"
+                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
+                    />
+                    <span className="pr-3 flex-shrink-0">
+                      {emailError
+                        ? <IconAlertCircle size={18} className="text-red-500" />
+                        : <IconMail size={18} className="text-gray-400" />}
+                    </span>
+                  </div>
+                  {emailError && <p className="mt-1.5 text-xs text-red-600">{emailError}</p>}
+                </div>
 
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium text-gray-700">Contraseña</label>
+                {/* Password */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-sm font-medium text-gray-700">Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={() => { setMode('forgot'); setResetEmail(email); }}
+                      className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${
+                    passwordError
+                      ? 'border-red-500 ring-1 ring-red-500'
+                      : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
+                  }`}>
+                    <input
+                      type={showPwd ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
+                    />
+                    <span className="pr-3 flex items-center gap-1.5">
+                      {passwordError && passwordError.trim() && (
+                        <IconAlertCircle size={18} className="text-red-500" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowPwd(v => !v)}
+                        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                        aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      >
+                        {showPwd ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                      </button>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Submit */}
                 <button
-                  type="button"
-                  onClick={() => { setMode('forgot'); setResetEmail(email); }}
-                  className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors"
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
+                  style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
                 >
-                  Forgot password?
+                  {isLoading
+                    ? <><IconSpinner size={18} />Iniciando sesión...</>
+                    : 'Iniciar Sesión'}
                 </button>
+              </form>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-400">o</span>
+                <div className="flex-1 h-px bg-gray-100" />
               </div>
-              <div
-                className={`flex items-center border rounded-xl bg-white transition-colors ${
-                  passwordError
-                    ? 'border-red-500 ring-1 ring-red-500'
-                    : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                }`}
+
+              {/* Google */}
+              <button
+                onClick={handleGoogle}
+                disabled={googleLoading || isLoading}
+                className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60"
               >
-                <input
-                  type={showPwd ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                />
-                <span className="pr-3 flex items-center gap-1.5">
-                  {passwordError && passwordError.trim() && (
-                    <IconAlertCircle size={18} className="text-red-500" />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(v => !v)}
-                    className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                    aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  >
-                    {showPwd ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-                  </button>
-                </span>
-              </div>
-              {passwordError && passwordError.trim() && (
-                <p className="mt-1.5 text-xs text-red-600">{passwordError}</p>
-              )}
+                {googleLoading ? <IconSpinner size={18} className="text-gray-500" /> : <IconGoogle size={18} />}
+                Continuar con Google
+              </button>
             </div>
+          )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed mt-2"
-              style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
-            >
-              {isLoading ? (
-                <>
-                  <IconSpinner size={18} />
-                  Iniciando sesión...
-                </>
-              ) : (
-                'Iniciar Sesión'
-              )}
-            </button>
-
-            <p className="text-center text-sm text-gray-500 mt-2">
-              Don&apos;t have an account?{' '}
-              <Link to="/register" className="font-semibold text-[#1e3252] hover:underline">
-                Sign up
-              </Link>
-            </p>
-          </form>
-        )}
-
-        {/* ── FORGOT PASSWORD FORM ── */}
-        {mode === 'forgot' && (
-          <form onSubmit={handleReset} noValidate className="space-y-4">
-            <p className="text-sm text-gray-600 text-center mb-2">
-              Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
-            </p>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Correo Electrónico
-              </label>
-              <div
-                className={`flex items-center border rounded-xl bg-white transition-colors ${
+          {/* ── FORGOT PASSWORD FORM ── */}
+          {mode === 'forgot' && (
+            <form onSubmit={handleReset} noValidate className="space-y-4">
+              <p className="text-sm text-gray-600 text-center">
+                Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Correo Electrónico</label>
+                <div className={`flex items-center border rounded-xl bg-white transition-colors ${
                   resetEmailError
                     ? 'border-red-500 ring-1 ring-red-500'
                     : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                }`}
+                }`}>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
+                    placeholder="student@university.edu"
+                    autoComplete="email"
+                    className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
+                  />
+                  <span className="pr-3 flex-shrink-0">
+                    {resetEmailError
+                      ? <IconAlertCircle size={18} className="text-red-500" />
+                      : <IconMail size={18} className="text-gray-400" />}
+                  </span>
+                </div>
+                {resetEmailError && <p className="mt-1.5 text-xs text-red-600">{resetEmailError}</p>}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
+                style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
               >
-                <input
-                  type="email"
-                  value={resetEmail}
-                  onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
-                  placeholder="student@university.edu"
-                  autoComplete="email"
-                  className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                />
-                <span className="pr-3 flex-shrink-0">
-                  {resetEmailError ? (
-                    <IconAlertCircle size={18} className="text-red-500" />
-                  ) : (
-                    <IconMail size={18} className="text-gray-400" />
-                  )}
-                </span>
+                {isLoading ? <><IconSpinner size={18} />Enviando...</> : 'Enviar enlace'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1"
+              >
+                ← Volver al inicio de sesión
+              </button>
+            </form>
+          )}
+
+          {/* ── RESET EMAIL SENT ── */}
+          {mode === 'forgot-sent' && (
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center">
+                  <IconMail2 size={28} className="text-green-500" />
+                </div>
               </div>
-              {resetEmailError && <p className="mt-1.5 text-xs text-red-600">{resetEmailError}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
-              style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
-            >
-              {isLoading ? <><IconSpinner size={18} />Enviando...</> : 'Enviar enlace'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMode('login')}
-              className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1"
-            >
-              ← Volver al inicio de sesión
-            </button>
-          </form>
-        )}
-
-        {/* ── RESET EMAIL SENT ── */}
-        {mode === 'forgot-sent' && (
-          <div className="text-center space-y-4">
-            <div className="flex justify-center">
-              <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center">
-                <IconMail2 size={28} className="text-green-500" />
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Correo enviado</h2>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  Revisa tu bandeja en{' '}
+                  <span className="font-medium text-gray-700">{resetEmail}</span>{' '}
+                  y sigue las instrucciones.
+                </p>
               </div>
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <IconCheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                <p className="text-xs text-green-700 text-left">
+                  Si no lo ves en unos minutos, revisa spam.
+                </p>
+              </div>
+              <button
+                onClick={() => { setMode('login'); setResetEmail(''); }}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-[#1e3252] border border-[#1e3252] hover:bg-[#1e3252] hover:text-white transition-colors"
+              >
+                Volver al inicio de sesión
+              </button>
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-900 mb-1">Correo enviado</h2>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                Revisa tu bandeja de entrada en{' '}
-                <span className="font-medium text-gray-700">{resetEmail}</span>{' '}
-                y sigue las instrucciones para restablecer tu contraseña.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-              <IconCheckCircle size={16} className="text-green-500 flex-shrink-0" />
-              <p className="text-xs text-green-700 text-left">
-                Si no lo ves en unos minutos, revisa la carpeta de spam.
-              </p>
-            </div>
-            <button
-              onClick={() => { setMode('login'); setResetEmail(''); }}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-[#1e3252] border border-[#1e3252] hover:bg-[#1e3252] hover:text-white transition-colors"
-            >
-              Volver al inicio de sesión
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Create account link */}
+      {mode === 'login' && (
+        <p className="mt-4 text-sm text-slate-400">
+          ¿No tienes cuenta?{' '}
+          <button onClick={() => navigate('/register')} className="text-slate-200 font-semibold hover:underline">
+            Crear cuenta
+          </button>
+        </p>
+      )}
     </div>
   );
 }
