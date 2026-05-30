@@ -134,40 +134,46 @@ export function LoginPage() {
           {mode === 'login' && (
             <div className="space-y-4">
               <form onSubmit={handleSignIn} noValidate className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.emailLabel')}</label>
-                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${emailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
-                    <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(null); }}
-                      placeholder={t('login.emailPlaceholder')} autoComplete="email"
-                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                    <span className="pr-3 flex-shrink-0">
-                      {emailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
-                    </span>
+                {/* fieldset bloquea nativamente todos sus controles y aplica opacidad uniforme */}
+                <fieldset
+                  disabled={isLoading}
+                  className={`space-y-4 border-0 p-0 m-0 min-w-0 transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}
+                >
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.emailLabel')}</label>
+                    <div className={`flex items-center border rounded-xl bg-white transition-colors ${emailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                      <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(null); }}
+                        placeholder={t('login.emailPlaceholder')} autoComplete="email"
+                        className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                      <span className="pr-3 flex-shrink-0">
+                        {emailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
+                      </span>
+                    </div>
+                    {emailError && <p className="mt-1.5 text-xs text-red-600">{emailError}</p>}
                   </div>
-                  {emailError && <p className="mt-1.5 text-xs text-red-600">{emailError}</p>}
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium text-gray-700">{t('login.passwordLabel')}</label>
-                    <button type="button" onClick={() => { setMode('forgot'); setResetEmail(email); }}
-                      className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors">
-                      {t('login.forgotPassword')}
-                    </button>
-                  </div>
-                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${passwordError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
-                    <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
-                      placeholder="••••••••" autoComplete="current-password"
-                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                    <span className="pr-3 flex items-center gap-1.5">
-                      {passwordError?.trim() && <IconAlertCircle size={18} className="text-red-500" />}
-                      <button type="button" onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                        aria-label={showPwd ? 'Hide password' : 'Show password'}>
-                        {showPwd ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">{t('login.passwordLabel')}</label>
+                      <button type="button" onClick={() => { setMode('forgot'); setResetEmail(email); }}
+                        className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors disabled:pointer-events-none">
+                        {t('login.forgotPassword')}
                       </button>
-                    </span>
+                    </div>
+                    <div className={`flex items-center border rounded-xl bg-white transition-colors ${passwordError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                      <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
+                        placeholder="••••••••" autoComplete="current-password"
+                        className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                      <span className="pr-3 flex items-center gap-1.5">
+                        {passwordError?.trim() && <IconAlertCircle size={18} className="text-red-500" />}
+                        <button type="button" onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600 flex-shrink-0 disabled:pointer-events-none"
+                          aria-label={showPwd ? 'Hide password' : 'Show password'}>
+                          {showPwd ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                        </button>
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </fieldset>
 
                 <button type="submit" disabled={isLoading}
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
@@ -176,43 +182,50 @@ export function LoginPage() {
                 </button>
               </form>
 
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-xs text-gray-400">{t('common.or')}</span>
-                <div className="flex-1 h-px bg-gray-100" />
-              </div>
+              <div className={`space-y-4 transition-opacity duration-200 ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <span className="text-xs text-gray-400">{t('common.or')}</span>
+                  <div className="flex-1 h-px bg-gray-100" />
+                </div>
 
-              <button onClick={handleGoogle} disabled={googleLoading || isLoading}
-                className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60">
-                {googleLoading ? <IconSpinner size={18} className="text-gray-500" /> : <IconGoogle size={18} />}
-                {t('login.googleButton')}
-              </button>
+                <button onClick={handleGoogle} disabled={googleLoading || isLoading}
+                  className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60">
+                  {googleLoading ? <IconSpinner size={18} className="text-gray-500" /> : <IconGoogle size={18} />}
+                  {t('login.googleButton')}
+                </button>
+              </div>
             </div>
           )}
 
           {/* ── FORGOT ── */}
           {mode === 'forgot' && (
             <form onSubmit={handleReset} noValidate className="space-y-4">
-              <p className="text-sm text-gray-600 text-center">{t('login.forgotSubtitle')}</p>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.forgotEmailLabel')}</label>
-                <div className={`flex items-center border rounded-xl bg-white transition-colors ${resetEmailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
-                  <input type="email" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
-                    placeholder={t('login.emailPlaceholder')} autoComplete="email"
-                    className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                  <span className="pr-3 flex-shrink-0">
-                    {resetEmailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
-                  </span>
+              <fieldset
+                disabled={isLoading}
+                className={`space-y-4 border-0 p-0 m-0 min-w-0 transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}
+              >
+                <p className="text-sm text-gray-600 text-center">{t('login.forgotSubtitle')}</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.forgotEmailLabel')}</label>
+                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${resetEmailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                    <input type="email" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
+                      placeholder={t('login.emailPlaceholder')} autoComplete="email"
+                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                    <span className="pr-3 flex-shrink-0">
+                      {resetEmailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
+                    </span>
+                  </div>
+                  {resetEmailError && <p className="mt-1.5 text-xs text-red-600">{resetEmailError}</p>}
                 </div>
-                {resetEmailError && <p className="mt-1.5 text-xs text-red-600">{resetEmailError}</p>}
-              </div>
+              </fieldset>
               <button type="submit" disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white disabled:cursor-not-allowed"
                 style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}>
                 {isLoading ? <><IconSpinner size={18} />{t('login.sending')}</> : t('login.sendLink')}
               </button>
-              <button type="button" onClick={() => setMode('login')}
-                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1">
+              <button type="button" disabled={isLoading} onClick={() => setMode('login')}
+                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1 disabled:opacity-50 disabled:pointer-events-none">
                 {t('login.backToLogin')}
               </button>
             </form>

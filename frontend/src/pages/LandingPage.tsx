@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
@@ -15,6 +15,9 @@ import {
   IconMessageSquare,
   IconUsers,
 } from '../components/icons';
+
+// Carga diferida: el bundle de three.js solo se descarga al renderizar el hero
+const HeroScene = lazy(() => import('../components/HeroScene'));
 
 export function LandingPage() {
   const { t } = useTranslation();
@@ -128,33 +131,11 @@ export function LandingPage() {
           {/* Hero card */}
           <div className="relative">
             <div className="w-full aspect-[4/3] bg-gradient-to-br from-[#0d4a5e] via-[#0a3448] to-[#081e2f] rounded-2xl overflow-hidden relative shadow-2xl">
-              <div className="absolute inset-0 flex items-center justify-center p-8">
-                <div className="grid grid-cols-2 gap-5 w-full h-full">
-                  <div className="col-span-2 bg-white/10 rounded-xl border border-white/10 flex items-center gap-4 p-4">
-                    <div className="w-10 h-10 rounded-full bg-teal-500/60 flex items-center justify-center text-white text-sm font-bold">JS</div>
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-2 bg-white/30 rounded-full w-3/4" />
-                      <div className="h-2 bg-white/15 rounded-full w-1/2" />
-                    </div>
-                    <div className="w-20 h-12 bg-teal-600/40 rounded-lg border border-teal-400/20" />
-                  </div>
-                  <div className="bg-white/8 rounded-xl border border-white/10 flex flex-col gap-2 p-3">
-                    <div className="w-8 h-8 rounded-full bg-indigo-400/50 flex items-center justify-center text-white text-xs font-bold">AK</div>
-                    <div className="space-y-1.5">
-                      <div className="h-1.5 bg-white/20 rounded-full w-full" />
-                      <div className="h-1.5 bg-white/10 rounded-full w-3/4" />
-                      <div className="h-1.5 bg-white/15 rounded-full w-2/4" />
-                    </div>
-                  </div>
-                  <div className="bg-white/8 rounded-xl border border-white/10 flex flex-col gap-2 p-3">
-                    <div className="w-8 h-8 rounded-full bg-amber-400/50 flex items-center justify-center text-white text-xs font-bold">MR</div>
-                    <div className="space-y-1.5">
-                      <div className="h-1.5 bg-white/20 rounded-full w-full" />
-                      <div className="h-1.5 bg-white/10 rounded-full w-2/3" />
-                      <div className="h-1.5 bg-white/15 rounded-full w-3/4" />
-                    </div>
-                  </div>
-                </div>
+              {/* Escena 3D reactiva al cursor (lazy-loaded) */}
+              <div className="absolute inset-0">
+                <Suspense fallback={null}>
+                  <HeroScene />
+                </Suspense>
               </div>
               <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-xl px-4 py-3 flex items-center justify-between border border-white/10">
                 <div className="flex items-center gap-3">

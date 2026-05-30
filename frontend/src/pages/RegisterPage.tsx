@@ -143,102 +143,108 @@ export function RegisterPage() {
           </div>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
-            {/* Avatar */}
-            <div className="flex flex-col items-center gap-1.5 mb-1">
-              <div className="relative w-14 h-14 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden cursor-pointer group" onClick={() => fileRef.current?.click()}>
-                {avatarPreview
-                  ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-gray-400"><IconUser size={24} /></div>}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <IconCamera size={14} className="text-white" />
+            {/* fieldset bloquea nativamente todos sus controles y aplica opacidad uniforme */}
+            <fieldset
+              disabled={isLoading}
+              className={`space-y-3.5 border-0 p-0 m-0 min-w-0 transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}
+            >
+              {/* Avatar */}
+              <div className="flex flex-col items-center gap-1.5 mb-1">
+                <div className="relative w-14 h-14 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden cursor-pointer group" onClick={() => fileRef.current?.click()}>
+                  {avatarPreview
+                    ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-gray-400"><IconUser size={24} /></div>}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <IconCamera size={14} className="text-white" />
+                  </div>
+                </div>
+                <button type="button" onClick={() => fileRef.current?.click()} className="text-xs text-[#1e3252] hover:underline disabled:pointer-events-none">
+                  {t('register.avatarLabel')}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              </div>
+
+              {/* Name grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.firstNameLabel')}</label>
+                  <div className={inputCls('firstName')}>
+                    <span className="pl-3 flex-shrink-0 text-gray-400"><IconUser size={15} /></span>
+                    <input type="text" value={firstName} onChange={e => { setFirstName(e.target.value); setErrors(p => ({ ...p, firstName: null })); }}
+                      placeholder={t('register.firstNamePlaceholder')} autoComplete="given-name"
+                      className="flex-1 min-w-0 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                    {errors.firstName && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
+                  </div>
+                  {errors.firstName && <p className="mt-1 text-xs text-red-600 leading-tight">{errors.firstName}</p>}
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.lastNameLabel')}</label>
+                  <div className={inputCls('lastName')}>
+                    <input type="text" value={lastName} onChange={e => { setLastName(e.target.value); setErrors(p => ({ ...p, lastName: null })); }}
+                      placeholder={t('register.lastNamePlaceholder')} autoComplete="family-name"
+                      className="flex-1 min-w-0 py-2.5 px-3 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                    {errors.lastName && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
+                  </div>
+                  {errors.lastName && <p className="mt-1 text-xs text-red-600 leading-tight">{errors.lastName}</p>}
                 </div>
               </div>
-              <button type="button" onClick={() => fileRef.current?.click()} className="text-xs text-[#1e3252] hover:underline">
-                {t('register.avatarLabel')}
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-            </div>
 
-            {/* Name grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.firstNameLabel')}</label>
-                <div className={inputCls('firstName')}>
-                  <span className="pl-3 flex-shrink-0 text-gray-400"><IconUser size={15} /></span>
-                  <input type="text" value={firstName} onChange={e => { setFirstName(e.target.value); setErrors(p => ({ ...p, firstName: null })); }}
-                    placeholder={t('register.firstNamePlaceholder')} autoComplete="given-name"
-                    className="flex-1 min-w-0 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                  {errors.firstName && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
+              {/* Username */}
+              <div>
+                <UsernameField value={username} onChange={v => { setUsername(v); setErrors(p => ({ ...p, username: null })); }} label={t('register.usernameLabel')} />
+                {errors.username && !username && <p className="mt-1 text-xs text-red-600">{errors.username}</p>}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.emailLabel')}</label>
+                <div className={inputCls('email')}>
+                  <span className="pl-3 flex-shrink-0 text-gray-400"><IconMail size={15} /></span>
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: null })); }}
+                    placeholder={t('register.emailPlaceholder')} autoComplete="email"
+                    className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                  {errors.email && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
                 </div>
-                {errors.firstName && <p className="mt-1 text-xs text-red-600 leading-tight">{errors.firstName}</p>}
+                {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
               </div>
-              <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.lastNameLabel')}</label>
-                <div className={inputCls('lastName')}>
-                  <input type="text" value={lastName} onChange={e => { setLastName(e.target.value); setErrors(p => ({ ...p, lastName: null })); }}
-                    placeholder={t('register.lastNamePlaceholder')} autoComplete="family-name"
-                    className="flex-1 min-w-0 py-2.5 px-3 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                  {errors.lastName && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.passwordLabel')}</label>
+                <div className={inputCls('password')}>
+                  <span className="pl-3 flex-shrink-0 text-gray-400"><IconLock size={15} /></span>
+                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: null })); }}
+                    placeholder="••••••••" autoComplete="new-password"
+                    className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                  <span className="pr-3 flex items-center gap-1">
+                    {errors.password && <IconAlertCircle size={15} className="text-red-500" />}
+                    <button type="button" onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600 disabled:pointer-events-none">
+                      {showPwd ? <IconEyeOff size={15} /> : <IconEye size={15} />}
+                    </button>
+                  </span>
                 </div>
-                {errors.lastName && <p className="mt-1 text-xs text-red-600 leading-tight">{errors.lastName}</p>}
+                {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
+                <PasswordStrength password={password} />
               </div>
-            </div>
 
-            {/* Username */}
-            <div>
-              <UsernameField value={username} onChange={v => { setUsername(v); setErrors(p => ({ ...p, username: null })); }} label={t('register.usernameLabel')} />
-              {errors.username && !username && <p className="mt-1 text-xs text-red-600">{errors.username}</p>}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.emailLabel')}</label>
-              <div className={inputCls('email')}>
-                <span className="pl-3 flex-shrink-0 text-gray-400"><IconMail size={15} /></span>
-                <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: null })); }}
-                  placeholder={t('register.emailPlaceholder')} autoComplete="email"
-                  className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                {errors.email && <IconAlertCircle size={15} className="text-red-500 mr-2 flex-shrink-0" />}
+              {/* Confirm password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.confirmPasswordLabel')}</label>
+                <div className={inputCls('confirmPassword')}>
+                  <span className="pl-3 flex-shrink-0 text-gray-400"><IconLockConfirm size={15} /></span>
+                  <input type={showConfirmPwd ? 'text' : 'password'} value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setErrors(p => ({ ...p, confirmPassword: null })); }}
+                    placeholder="••••••••" autoComplete="new-password"
+                    className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent disabled:cursor-not-allowed" />
+                  <span className="pr-3 flex items-center gap-1">
+                    {errors.confirmPassword && <IconAlertCircle size={15} className="text-red-500" />}
+                    <button type="button" onClick={() => setShowConfirmPwd(v => !v)} className="text-gray-400 hover:text-gray-600 disabled:pointer-events-none">
+                      {showConfirmPwd ? <IconEyeOff size={15} /> : <IconEye size={15} />}
+                    </button>
+                  </span>
+                </div>
+                {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
               </div>
-              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.passwordLabel')}</label>
-              <div className={inputCls('password')}>
-                <span className="pl-3 flex-shrink-0 text-gray-400"><IconLock size={15} /></span>
-                <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: null })); }}
-                  placeholder="••••••••" autoComplete="new-password"
-                  className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                <span className="pr-3 flex items-center gap-1">
-                  {errors.password && <IconAlertCircle size={15} className="text-red-500" />}
-                  <button type="button" onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600">
-                    {showPwd ? <IconEyeOff size={15} /> : <IconEye size={15} />}
-                  </button>
-                </span>
-              </div>
-              {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
-              <PasswordStrength password={password} />
-            </div>
-
-            {/* Confirm password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('register.confirmPasswordLabel')}</label>
-              <div className={inputCls('confirmPassword')}>
-                <span className="pl-3 flex-shrink-0 text-gray-400"><IconLockConfirm size={15} /></span>
-                <input type={showConfirmPwd ? 'text' : 'password'} value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setErrors(p => ({ ...p, confirmPassword: null })); }}
-                  placeholder="••••••••" autoComplete="new-password"
-                  className="flex-1 py-2.5 px-2 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
-                <span className="pr-3 flex items-center gap-1">
-                  {errors.confirmPassword && <IconAlertCircle size={15} className="text-red-500" />}
-                  <button type="button" onClick={() => setShowConfirmPwd(v => !v)} className="text-gray-400 hover:text-gray-600">
-                    {showConfirmPwd ? <IconEyeOff size={15} /> : <IconEye size={15} />}
-                  </button>
-                </span>
-              </div>
-              {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
-            </div>
+            </fieldset>
 
             {/* Submit */}
             <button type="submit" disabled={isLoading || usernameChecking}
@@ -247,24 +253,26 @@ export function RegisterPage() {
               {isLoading ? <><IconSpinner size={17} />{t('register.submitting')}</> : <>{t('register.submitButton')}<IconArrowRight size={17} /></>}
             </button>
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-xs text-gray-400">{t('common.or')}</span>
-              <div className="flex-1 h-px bg-gray-100" />
+            <div className={`space-y-3.5 transition-opacity duration-200 ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-400">{t('common.or')}</span>
+                <div className="flex-1 h-px bg-gray-100" />
+              </div>
+
+              <button type="button" onClick={handleGoogle} disabled={googleLoading || isLoading}
+                className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60">
+                {googleLoading ? <IconSpinner size={17} className="text-gray-500" /> : <IconGoogle size={17} />}
+                {t('register.googleButton')}
+              </button>
+
+              <p className="text-center text-xs text-gray-400 leading-relaxed pt-1">
+                {t('register.termsPrefix')}{' '}
+                <a href="#" className="text-[#1e3252] underline">{t('common.terms')}</a>
+                {' '}{t('register.termsAnd')}{' '}
+                <a href="#" className="text-[#1e3252] underline">{t('common.privacy')}</a>.
+              </p>
             </div>
-
-            <button type="button" onClick={handleGoogle} disabled={googleLoading || isLoading}
-              className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60">
-              {googleLoading ? <IconSpinner size={17} className="text-gray-500" /> : <IconGoogle size={17} />}
-              {t('register.googleButton')}
-            </button>
-
-            <p className="text-center text-xs text-gray-400 leading-relaxed pt-1">
-              {t('register.termsPrefix')}{' '}
-              <a href="#" className="text-[#1e3252] underline">{t('common.terms')}</a>
-              {' '}{t('register.termsAnd')}{' '}
-              <a href="#" className="text-[#1e3252] underline">{t('common.privacy')}</a>.
-            </p>
           </form>
         </div>
       </div>
