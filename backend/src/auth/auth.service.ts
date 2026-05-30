@@ -3,6 +3,7 @@ import {
   HttpException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { UserRecord } from 'firebase-admin/auth';
@@ -35,6 +36,8 @@ export interface GoogleNewUserResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly firebase: FirebaseService,
     private readonly usersService: UsersService,
@@ -156,24 +159,27 @@ export class AuthService {
         photoURL: dto.avatarUrl,
       });
     } catch (error: unknown) {
+      this.logger.error('Firebase createUser failed', error);
       throw this.mapFirebaseError(error);
     }
   }
 
   private mapFirebaseError(error: unknown): HttpException {
-    const e = error as { code?: string };
+    const e = error as { code?: string; message?: string };
     const map: Record<string, HttpException> = {
-      'auth/email-already-in-use': new ConflictException(
-        'Email is already in use',
-      ),
+      'auth/email-already-in-use': new ConflictException('Email is already in use'),
       'auth/invalid-email': new ConflictException('Invalid email address'),
-      'auth/weak-password': new ConflictException(
-        'Password must be at least 8 characters',
+      'auth/weak-password': new ConflictException('Password must be at least 8 characters'),
+      'auth/invalid-password': new ConflictException('Password must be at least 8 characters'),
+      'auth/configuration-not-found': new InternalServerErrorException(
+        'Firebase Auth is not configured. Enable Email/Password provider in the Firebase Console.',
+      ),
+      'auth/project-not-found': new InternalServerErrorException(
+        'Firebase project not found. Check FIREBASE_PROJECT_ID in .env',
       ),
     };
-    return (
-      (e.code ? map[e.code] : undefined) ??
-      new InternalServerErrorException('Registration failed')
+    return (e.code ? map[e.code] : undefined) ?? new InternalServerErrorException(
+      e.message ?? 'Registration failed',
     );
   }
 }

@@ -32,22 +32,37 @@ async function bootstrap(): Promise<void> {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Mini Proyecto 2 — API')
     .setDescription(
-      'REST API for the collaborative study platform.\n\n' +
-        '**Auth flow:**\n' +
-        '1. Register → `POST /api/auth/register` → receive `customToken` → call `signInWithCustomToken(auth, customToken)` on the frontend.\n' +
-        '2. Google OAuth → complete popup on frontend → `POST /api/auth/google` → if `needsUsername` → `POST /api/auth/google/complete-profile`.\n' +
-        '3. All protected endpoints require `Authorization: Bearer <Firebase ID token>`.',
+      `REST API for the collaborative study platform.
+
+## Auth flow
+
+**Email/password registration**
+
+\`POST /api/auth/register\` → returns a \`customToken\` → frontend calls \`signInWithCustomToken(auth, customToken)\`
+
+**Google OAuth**
+
+Frontend completes Google popup → \`POST /api/auth/google\`
+- Existing user → returns \`{ user }\`
+- New user → returns \`{ isNewUser: true }\` → call \`POST /api/auth/google/complete-profile\` with a username
+
+**Protected endpoints**
+
+Add \`Authorization: Bearer <Firebase ID token>\` to every protected request.
+Get the token on the frontend with \`await currentUser.getIdToken()\`.`,
     )
     .setVersion('1.0')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'Firebase ID Token',
-      description:
-        'Paste the Firebase ID token obtained from getIdToken() on the frontend',
-    })
-    .addTag('auth', 'Registration, Google OAuth, password reset, current user')
-    .addTag('users', 'Username availability check and profile updates')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'Firebase ID Token',
+        description: 'Run `await currentUser.getIdToken()` on the frontend and paste the result here.',
+      },
+      'firebase',
+    )
+    .addTag('auth', 'Registration, Google OAuth, password reset and current user profile')
+    .addTag('users', 'Username availability and profile updates')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

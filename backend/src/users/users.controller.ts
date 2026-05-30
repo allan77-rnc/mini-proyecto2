@@ -51,7 +51,7 @@ export class UsersController {
 
   @Patch('me')
   @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('firebase')
   @ApiOperation({
     summary: 'Update own profile (firstName, lastName, avatarUrl)',
   })
@@ -68,7 +68,7 @@ export class UsersController {
 
   @Get('me')
   @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('firebase')
   @ApiOperation({ summary: 'Get own Firestore profile' })
   @ApiOkResponse({ type: UserProfileResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })

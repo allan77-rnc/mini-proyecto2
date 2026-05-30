@@ -110,7 +110,7 @@ export class AuthController {
   @Post('google/complete-profile')
   @HttpCode(HttpStatus.OK)
   @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('firebase')
   @ApiOperation({
     summary: 'Complete Google user profile (choose username)',
     description:
@@ -151,7 +151,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('firebase')
   @ApiOperation({ summary: 'Get own Firestore profile' })
   @ApiOkResponse({ type: UserProfileResponse })
   @ApiNotFoundResponse({ description: 'Profile not found in Firestore' })
