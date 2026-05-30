@@ -58,7 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { needsProfile: true };
     }
     if (data.user) {
-      setState(prev => ({ ...prev, user: data.user! }));
+      const profile = data.user;
+      setState(prev => ({ ...prev, user: profile }));
     }
     return { needsProfile: false };
   }

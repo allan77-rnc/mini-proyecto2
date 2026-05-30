@@ -31,7 +31,16 @@ client.interceptors.response.use(
 );
 
 export const api = {
-  get: <T>(path: string) => client.get<T>(path).then((r) => r.data),
-  post: <T>(path: string, body?: unknown) => client.post<T>(path, body).then((r) => r.data),
-  patch: <T>(path: string, body?: unknown) => client.patch<T>(path, body).then((r) => r.data),
+  async get<T>(path: string): Promise<T> {
+    const { data } = await client.get<T>(path);
+    return data;
+  },
+  async post<T>(path: string, body?: unknown): Promise<T> {
+    const { data } = await client.post<T>(path, body);
+    return data;
+  },
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    const { data } = await client.patch<T>(path, body);
+    return data;
+  },
 };
