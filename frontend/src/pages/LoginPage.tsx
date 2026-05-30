@@ -1,44 +1,29 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../contexts/ToastContext';
 import { ToastContainer } from '../components/Toast';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import {
-  IconGraduationCap,
-  IconMail,
-  IconLock,
-  IconEye,
-  IconEyeOff,
-  IconSpinner,
-  IconAlertCircle,
-  IconMail2,
-  IconCheckCircle,
-  IconGoogle,
+  IconGraduationCap, IconMail, IconLock, IconEye, IconEyeOff,
+  IconSpinner, IconAlertCircle, IconMail2, IconCheckCircle, IconGoogle,
 } from '../components/icons';
 
-const AUTH_ERROR_MAP: Record<string, string> = {
-  'auth/wrong-password': 'Credenciales incorrectas. Verifica e intenta de nuevo.',
-  'auth/user-not-found': 'Credenciales incorrectas. Verifica e intenta de nuevo.',
-  'auth/invalid-credential': 'Credenciales incorrectas. Verifica e intenta de nuevo.',
-  'auth/too-many-requests': 'Demasiados intentos fallidos. Espera un momento e inténtalo de nuevo.',
-  'auth/user-disabled': 'Esta cuenta ha sido deshabilitada.',
-  'auth/invalid-email': 'El correo no tiene un formato válido.',
-  'auth/network-request-failed': 'Sin conexión. Verifica tu red e inténtalo de nuevo.',
+const AUTH_ERROR_KEYS: Record<string, string> = {
+  'auth/wrong-password': 'authErrors.invalidCredentials',
+  'auth/user-not-found': 'authErrors.invalidCredentials',
+  'auth/invalid-credential': 'authErrors.invalidCredentials',
+  'auth/too-many-requests': 'authErrors.tooManyRequests',
+  'auth/user-disabled': 'authErrors.userDisabled',
+  'auth/invalid-email': 'authErrors.invalidEmail',
+  'auth/network-request-failed': 'authErrors.networkError',
 };
-
-function getAuthError(code: string): string {
-  return AUTH_ERROR_MAP[code] ?? 'Ocurrió un error. Inténtalo de nuevo.';
-}
-
-function validateEmail(email: string): string | null {
-  if (!email) return 'El correo es requerido.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Ingresa un correo válido.';
-  return null;
-}
 
 type Mode = 'login' | 'forgot' | 'forgot-sent';
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { user, firebaseUid, initialized, signIn, sendResetEmail, signInWithGoogle } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -58,10 +43,16 @@ export function LoginPage() {
     if (initialized && firebaseUid && user) navigate('/dashboard', { replace: true });
   }, [initialized, firebaseUid, user, navigate]);
 
+  function validateEmail(value: string): string | null {
+    if (!value) return t('validation.emailRequired');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return t('validation.emailInvalid');
+    return null;
+  }
+
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     const eErr = validateEmail(email);
-    const pErr = !password ? 'La contraseña es requerida.' : null;
+    const pErr = !password ? t('validation.passwordRequired') : null;
     setEmailError(eErr);
     setPasswordError(pErr);
     if (eErr || pErr) return;
@@ -72,7 +63,8 @@ export function LoginPage() {
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
-      showToast('error', 'Acceso Denegado', getAuthError(code));
+      const msgKey = AUTH_ERROR_KEYS[code] ?? 'authErrors.generic';
+      showToast('error', t('authErrors.accessDenied'), t(msgKey));
       setPasswordError(' ');
     } finally {
       setIsLoading(false);
@@ -90,7 +82,7 @@ export function LoginPage() {
       await sendResetEmail(resetEmail);
       setMode('forgot-sent');
     } catch {
-      showToast('error', 'Error', 'No se pudo enviar el correo. Verifica la dirección e inténtalo de nuevo.');
+      showToast('error', 'Error', t('authErrors.resetError'));
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +96,7 @@ export function LoginPage() {
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
       if (code !== 'auth/popup-closed-by-user') {
-        showToast('error', 'Error', 'No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
+        showToast('error', 'Error', t('authErrors.googleError'));
       }
     } finally {
       setGoogleLoading(false);
@@ -115,190 +107,118 @@ export function LoginPage() {
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center px-4 py-8">
       <ToastContainer />
 
-      {/* Back button */}
-      <div className="w-full max-w-sm mb-3">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
-        >
-          ← Volver al inicio
+      {/* Top bar */}
+      <div className="w-full max-w-sm mb-3 flex items-center justify-between">
+        <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors">
+          {t('common.backToHome')}
         </button>
+        <LanguageSwitcher variant="dark" />
       </div>
 
-      {/* Card */}
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="px-8 py-10">
-          {/* Logo */}
           <div className="flex justify-center mb-5">
             <div className="w-14 h-14 bg-[#1e3252] rounded-2xl flex items-center justify-center shadow-md">
               <IconGraduationCap size={28} className="text-white" />
             </div>
           </div>
 
-          {/* Heading */}
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">
-              Welcome to<br />StudySphere
+            <h1 className="text-2xl font-bold text-gray-900 mb-1 whitespace-pre-line">
+              {t('login.title')}
             </h1>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              Connect, collaborate, and conquer your coursework together.
-            </p>
+            <p className="text-gray-500 text-xs leading-relaxed">{t('login.subtitle')}</p>
           </div>
 
-          {/* ── LOGIN FORM ── */}
+          {/* ── LOGIN ── */}
           {mode === 'login' && (
             <div className="space-y-4">
               <form onSubmit={handleSignIn} noValidate className="space-y-4">
-                {/* Email */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Correo Electrónico Institucional
-                  </label>
-                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${
-                    emailError
-                      ? 'border-red-500 ring-1 ring-red-500'
-                      : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                  }`}>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={e => { setEmail(e.target.value); setEmailError(null); }}
-                      placeholder="student@university.edu"
-                      autoComplete="email"
-                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                    />
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.emailLabel')}</label>
+                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${emailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                    <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(null); }}
+                      placeholder={t('login.emailPlaceholder')} autoComplete="email"
+                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
                     <span className="pr-3 flex-shrink-0">
-                      {emailError
-                        ? <IconAlertCircle size={18} className="text-red-500" />
-                        : <IconMail size={18} className="text-gray-400" />}
+                      {emailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
                     </span>
                   </div>
                   {emailError && <p className="mt-1.5 text-xs text-red-600">{emailError}</p>}
                 </div>
 
-                {/* Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium text-gray-700">Contraseña</label>
-                    <button
-                      type="button"
-                      onClick={() => { setMode('forgot'); setResetEmail(email); }}
-                      className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors"
-                    >
-                      ¿Olvidaste tu contraseña?
+                    <label className="text-sm font-medium text-gray-700">{t('login.passwordLabel')}</label>
+                    <button type="button" onClick={() => { setMode('forgot'); setResetEmail(email); }}
+                      className="text-xs text-gray-500 hover:text-[#1e3252] transition-colors">
+                      {t('login.forgotPassword')}
                     </button>
                   </div>
-                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${
-                    passwordError
-                      ? 'border-red-500 ring-1 ring-red-500'
-                      : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                  }`}>
-                    <input
-                      type={showPwd ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                    />
+                  <div className={`flex items-center border rounded-xl bg-white transition-colors ${passwordError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                    <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
+                      placeholder="••••••••" autoComplete="current-password"
+                      className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
                     <span className="pr-3 flex items-center gap-1.5">
-                      {passwordError && passwordError.trim() && (
-                        <IconAlertCircle size={18} className="text-red-500" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setShowPwd(v => !v)}
-                        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                        aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      >
+                      {passwordError?.trim() && <IconAlertCircle size={18} className="text-red-500" />}
+                      <button type="button" onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                        aria-label={showPwd ? 'Hide password' : 'Show password'}>
                         {showPwd ? <IconEyeOff size={18} /> : <IconEye size={18} />}
                       </button>
                     </span>
                   </div>
                 </div>
 
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={isLoading}
+                <button type="submit" disabled={isLoading}
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
-                  style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
-                >
-                  {isLoading
-                    ? <><IconSpinner size={18} />Iniciando sesión...</>
-                    : 'Iniciar Sesión'}
+                  style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}>
+                  {isLoading ? <><IconSpinner size={18} />{t('login.submitting')}</> : t('login.submitButton')}
                 </button>
               </form>
 
-              {/* Divider */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-xs text-gray-400">o</span>
+                <span className="text-xs text-gray-400">{t('common.or')}</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
 
-              {/* Google */}
-              <button
-                onClick={handleGoogle}
-                disabled={googleLoading || isLoading}
-                className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60"
-              >
+              <button onClick={handleGoogle} disabled={googleLoading || isLoading}
+                className="w-full flex items-center justify-center gap-3 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors disabled:opacity-60">
                 {googleLoading ? <IconSpinner size={18} className="text-gray-500" /> : <IconGoogle size={18} />}
-                Continuar con Google
+                {t('login.googleButton')}
               </button>
             </div>
           )}
 
-          {/* ── FORGOT PASSWORD FORM ── */}
+          {/* ── FORGOT ── */}
           {mode === 'forgot' && (
             <form onSubmit={handleReset} noValidate className="space-y-4">
-              <p className="text-sm text-gray-600 text-center">
-                Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
-              </p>
+              <p className="text-sm text-gray-600 text-center">{t('login.forgotSubtitle')}</p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Correo Electrónico</label>
-                <div className={`flex items-center border rounded-xl bg-white transition-colors ${
-                  resetEmailError
-                    ? 'border-red-500 ring-1 ring-red-500'
-                    : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'
-                }`}>
-                  <input
-                    type="email"
-                    value={resetEmail}
-                    onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
-                    placeholder="student@university.edu"
-                    autoComplete="email"
-                    className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent"
-                  />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.forgotEmailLabel')}</label>
+                <div className={`flex items-center border rounded-xl bg-white transition-colors ${resetEmailError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 focus-within:border-[#1e3252] focus-within:ring-1 focus-within:ring-[#1e3252]'}`}>
+                  <input type="email" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetEmailError(null); }}
+                    placeholder={t('login.emailPlaceholder')} autoComplete="email"
+                    className="flex-1 py-3 px-4 outline-none text-gray-900 placeholder-gray-400 text-sm bg-transparent" />
                   <span className="pr-3 flex-shrink-0">
-                    {resetEmailError
-                      ? <IconAlertCircle size={18} className="text-red-500" />
-                      : <IconMail size={18} className="text-gray-400" />}
+                    {resetEmailError ? <IconAlertCircle size={18} className="text-red-500" /> : <IconMail size={18} className="text-gray-400" />}
                   </span>
                 </div>
                 {resetEmailError && <p className="mt-1.5 text-xs text-red-600">{resetEmailError}</p>}
               </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-colors disabled:cursor-not-allowed"
-                style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}
-              >
-                {isLoading ? <><IconSpinner size={18} />Enviando...</> : 'Enviar enlace'}
+              <button type="submit" disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white disabled:cursor-not-allowed"
+                style={{ backgroundColor: isLoading ? '#9ca3af' : '#1e3252' }}>
+                {isLoading ? <><IconSpinner size={18} />{t('login.sending')}</> : t('login.sendLink')}
               </button>
-
-              <button
-                type="button"
-                onClick={() => setMode('login')}
-                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1"
-              >
-                ← Volver al inicio de sesión
+              <button type="button" onClick={() => setMode('login')}
+                className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-1">
+                {t('login.backToLogin')}
               </button>
             </form>
           )}
 
-          {/* ── RESET EMAIL SENT ── */}
+          {/* ── SENT ── */}
           {mode === 'forgot-sent' && (
             <div className="text-center space-y-4">
               <div className="flex justify-center">
@@ -307,36 +227,29 @@ export function LoginPage() {
                 </div>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900 mb-1">Correo enviado</h2>
+                <h2 className="text-base font-semibold text-gray-900 mb-1">{t('login.sentTitle')}</h2>
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  Revisa tu bandeja en{' '}
-                  <span className="font-medium text-gray-700">{resetEmail}</span>{' '}
-                  y sigue las instrucciones.
+                  {t('login.sentDesc', { email: resetEmail })}
                 </p>
               </div>
               <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                 <IconCheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                <p className="text-xs text-green-700 text-left">
-                  Si no lo ves en unos minutos, revisa spam.
-                </p>
+                <p className="text-xs text-green-700 text-left">{t('login.sentNote')}</p>
               </div>
-              <button
-                onClick={() => { setMode('login'); setResetEmail(''); }}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-[#1e3252] border border-[#1e3252] hover:bg-[#1e3252] hover:text-white transition-colors"
-              >
-                Volver al inicio de sesión
+              <button onClick={() => { setMode('login'); setResetEmail(''); }}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-[#1e3252] border border-[#1e3252] hover:bg-[#1e3252] hover:text-white transition-colors">
+                {t('login.backToSignIn')}
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Create account link */}
       {mode === 'login' && (
         <p className="mt-4 text-sm text-slate-400">
-          ¿No tienes cuenta?{' '}
+          {t('login.noAccount')}{' '}
           <button onClick={() => navigate('/register')} className="text-slate-200 font-semibold hover:underline">
-            Crear cuenta
+            {t('login.createAccount')}
           </button>
         </p>
       )}
