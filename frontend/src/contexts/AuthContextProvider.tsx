@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   signInWithEmailAndPassword,
   signInWithCustomToken,
@@ -9,23 +9,11 @@ import {
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { api } from '../lib/api';
-import type {
-  UserProfile,
-  AuthState,
-  RegisterPayload,
-  CompleteProfilePayload,
-} from '../types/auth';
+import type { UserProfile, AuthState, RegisterPayload, CompleteProfilePayload } from '../types/auth';
+import { AuthContext } from './AuthContext';
+import type { AuthContextValue } from './AuthContext';
 
-interface AuthContextValue extends AuthState {
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (payload: RegisterPayload) => Promise<void>;
-  signInWithGoogle: () => Promise<{ needsProfile: boolean }>;
-  completeProfile: (payload: CompleteProfilePayload) => Promise<void>;
-  sendResetEmail: (email: string) => Promise<void>;
-  signOut: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+export { AuthContext };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -41,7 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profile = await api.get<UserProfile>('/api/auth/me');
           setState({ user: profile, firebaseUid: fbUser.uid, initialized: true });
         } catch {
-          // 404 = no profile yet (Google user before completing profile)
           setState({ user: null, firebaseUid: fbUser.uid, initialized: true });
         }
       } else {
@@ -89,17 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fbSignOut(auth);
   }
 
-  return (
-    <AuthContext.Provider
-      value={{ ...state, signIn, signUp, signInWithGoogle, completeProfile, sendResetEmail, signOut }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  const value: AuthContextValue = { ...state, signIn, signUp, signInWithGoogle, completeProfile, sendResetEmail, signOut };
 
-export function useAuthContext(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuthContext must be used inside <AuthProvider>');
-  return ctx;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { type Toast, useToast } from '../contexts/ToastContext';
+import { type Toast } from '../contexts/ToastContext';
+import { useToast } from '../contexts/useToast';
 import { IconAlertCircle, IconCheckCircle } from './icons';
 
 export function ToastContainer() {
