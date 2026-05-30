@@ -1,16 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
+  signInWithCustomToken,
   signInWithPopup,
   GoogleAuthProvider,
-  sendPasswordResetEmail,
   signOut as fbSignOut,
   onAuthStateChanged,
-  updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
+import { api } from '../lib/api';
 import type {
   UserProfile,
   AuthState,
@@ -39,9 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        const snap = await getDoc(doc(db, 'users', fbUser.uid));
-        const profile = snap.exists() ? (snap.data() as UserProfile) : null;
-        setState({ user: profile, firebaseUid: fbUser.uid, initialized: true });
+        try {
+          const profile = await api.get<UserProfile>('/api/auth/me');
+          setState({ user: profile, firebaseUid: fbUser.uid, initialized: true });
+        } catch {
+          // 404 = no profile yet (Google user before completing profile)
+          setState({ user: null, firebaseUid: fbUser.uid, initialized: true });
+        }
       } else {
         setState({ user: null, firebaseUid: null, initialized: true });
       }
@@ -52,66 +54,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }
 
-  async function signUp({
-    firstName,
-    lastName,
-    username,
-    email,
-    password,
-    avatarUrl,
-  }: RegisterPayload) {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(user, { displayName: `${firstName} ${lastName}` });
-    const lowerUsername = username.toLowerCase();
-    const profile: UserProfile = {
-      uid: user.uid,
-      email,
-      firstName,
-      lastName,
-      username: lowerUsername,
-      avatarUrl:
-        avatarUrl ??
-        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(`${firstName} ${lastName}`)}`,
-      provider: 'email',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await setDoc(doc(db, 'users', user.uid), profile);
-    await setDoc(doc(db, 'usernames', lowerUsername), { uid: user.uid });
+  async function signUp(payload: RegisterPayload) {
+    const { customToken } = await api.post<{ customToken: string }>('/api/auth/register', payload);
+    await signInWithCustomToken(auth, customToken);
   }
 
   async function signInWithGoogle(): Promise<{ needsProfile: boolean }> {
     const provider = new GoogleAuthProvider();
-    const { user } = await signInWithPopup(auth, provider);
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    return { needsProfile: !snap.exists() };
+    const { user: fbUser } = await signInWithPopup(auth, provider);
+    const idToken = await fbUser.getIdToken();
+    const data = await api.post<{ user?: UserProfile; isNewUser?: boolean }>(
+      '/api/auth/google',
+      { idToken }
+    );
+    if (data.isNewUser) {
+      return { needsProfile: true };
+    }
+    if (data.user) {
+      setState(prev => ({ ...prev, user: data.user! }));
+    }
+    return { needsProfile: false };
   }
 
   async function completeProfile({ username }: CompleteProfilePayload) {
-    const fbUser = auth.currentUser;
-    if (!fbUser) throw new Error('No authenticated user');
-    const nameParts = (fbUser.displayName ?? '').split(' ');
-    const lowerUsername = username.toLowerCase();
-    const profile: UserProfile = {
-      uid: fbUser.uid,
-      email: fbUser.email!,
-      firstName: nameParts[0] ?? '',
-      lastName: nameParts.slice(1).join(' '),
-      username: lowerUsername,
-      avatarUrl:
-        fbUser.photoURL ??
-        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lowerUsername)}`,
-      provider: 'google',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await setDoc(doc(db, 'users', fbUser.uid), profile);
-    await setDoc(doc(db, 'usernames', lowerUsername), { uid: fbUser.uid });
+    const profile = await api.post<UserProfile>('/api/auth/google/complete-profile', { username });
     setState(prev => ({ ...prev, user: profile }));
   }
 
   async function sendResetEmail(email: string) {
-    await sendPasswordResetEmail(auth, email);
+    await api.post('/api/auth/reset-password', { email });
   }
 
   async function signOut() {
