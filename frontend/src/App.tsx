@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext';
+import { AuthProvider } from './contexts/AuthContextProvider';
+import { ToastProvider } from './contexts/ToastProvider';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
