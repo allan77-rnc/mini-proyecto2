@@ -1,0 +1,168 @@
+export const en = {
+  common: {
+    backToHome: '← Back to home',
+    or: 'or',
+    terms: 'Terms of Service',
+    privacy: 'Privacy Policy',
+    close: 'Close',
+    loading: 'Loading...',
+  },
+
+  nav: {
+    features: 'Features',
+    about: 'About',
+    signIn: 'Sign in',
+    getStarted: 'Get Started',
+  },
+
+  landing: {
+    badge: 'A new standard for academia',
+    title1: 'Synchronous Study,',
+    title2: 'Reimagined.',
+    subtitle:
+      'Experience a collaborative digital workspace engineered to reduce cognitive load and enhance focus. High-fidelity audio, dynamic video grids, and persistent scholarly tools—all in one seamless, accessible platform.',
+    ctaPrimary: 'Get Started',
+    ctaSecondary: 'Join a Room',
+    googleCta: 'Continue with Google',
+    legal: "By continuing, you agree to StudySphere's",
+    and: 'and',
+    features: {
+      heading: 'Precision Tools for Serious Scholars',
+      subheading:
+        'Our platform integrates seamlessly into your academic workflow, providing high-contrast clarity and structured environments.',
+      video: {
+        title: 'Real-Time Video & Audio',
+        description:
+          'Dynamic fluid grid layouts that automatically reflow. Active speaker highlighting utilizing high-contrast Teal borders ensures you never miss a cue during complex discussions.',
+      },
+      chat: {
+        title: 'Persistent Chat',
+        description:
+          'Threaded conversations, file attachments, and searchable histories mapped perfectly to the fixed sidebar grid.',
+      },
+      screen: {
+        title: 'Flawless Screen Sharing',
+        description:
+          'Share presentations, code IDEs, or digital whiteboards with minimal latency. Our focus-first layout minimizes the UI chrome to prioritize your canvas.',
+        cta: 'See it in action',
+      },
+    },
+    footer: {
+      privacy: 'Privacy',
+      terms: 'Terms',
+      accessibility: 'Accessibility',
+    },
+  },
+
+  login: {
+    title: 'Welcome to\nStudySphere',
+    subtitle: 'Connect, collaborate, and conquer your coursework together.',
+    emailLabel: 'Institutional Email',
+    emailPlaceholder: 'student@university.edu',
+    passwordLabel: 'Password',
+    forgotPassword: 'Forgot password?',
+    submitButton: 'Sign In',
+    submitting: 'Signing in...',
+    googleButton: 'Continue with Google',
+    noAccount: "Don't have an account?",
+    createAccount: 'Create account',
+    // Forgot password mode
+    forgotSubtitle: "Enter your email and we'll send you a link to reset your password.",
+    forgotEmailLabel: 'Email',
+    sendLink: 'Send link',
+    sending: 'Sending...',
+    backToLogin: '← Back to sign in',
+    // Sent confirmation
+    sentTitle: 'Email sent',
+    sentDesc: 'Check your inbox at {{email}} and follow the instructions to reset your password.',
+    sentNote: "If you don't see it in a few minutes, check your spam folder.",
+    backToSignIn: 'Back to sign in',
+  },
+
+  register: {
+    title: 'Sign up',
+    subtitle: 'Connect, collaborate, and conquer your coursework together.',
+    avatarLabel: 'Profile photo (optional)',
+    firstNameLabel: 'First name',
+    firstNamePlaceholder: 'Ana',
+    lastNameLabel: 'Last name',
+    lastNamePlaceholder: 'García',
+    usernameLabel: 'Username',
+    emailLabel: 'Email',
+    emailPlaceholder: 'ana.garcia@university.edu',
+    passwordLabel: 'Password',
+    confirmPasswordLabel: 'Confirm Password',
+    submitButton: 'Register',
+    submitting: 'Creating account...',
+    googleButton: 'Register with Google',
+    termsPrefix: 'By registering, you accept our',
+    termsAnd: 'and',
+    alreadyAccount: 'Already have an account?',
+    signIn: 'Sign in',
+  },
+
+  completeProfile: {
+    title: 'Almost there',
+    subtitle: 'Choose a username to complete your academic profile.',
+    usernameLabel: 'Username',
+    submitButton: 'Finish registration',
+    submitting: 'Saving...',
+    termsPrefix: 'By finishing, you accept our',
+  },
+
+  dashboard: {
+    welcome: 'Welcome{{name}}!',
+    profileSection: 'Your profile',
+    nameField: 'Name',
+    emailField: 'Email',
+    providerField: 'Provider',
+    signOut: 'Sign out',
+  },
+
+  validation: {
+    firstNameRequired: 'First name is required.',
+    firstNameMin: 'Minimum 2 characters.',
+    lastNameRequired: 'Last name is required.',
+    lastNameMin: 'Minimum 2 characters.',
+    usernameRequired: 'Username is required.',
+    usernameUnavailable: 'Choose a valid and available username.',
+    usernameMin: 'Minimum 3 characters required.',
+    usernameMax: 'Maximum 20 characters allowed.',
+    usernameChars: 'Only letters, numbers, hyphens and underscores.',
+    usernameTaken: 'This username is already taken, choose another.',
+    emailRequired: 'Email is required.',
+    emailInvalid: 'Enter a valid email (e.g. name@email.com)',
+    emailDomain: 'You must use your institutional email (@{{domain}}).',
+    passwordRequired: 'Password is required.',
+    passwordMin: 'Minimum 8 characters.',
+    passwordWeak: 'Password must be at least 6 characters.',
+    confirmMismatch: 'Passwords do not match.',
+  },
+
+  authErrors: {
+    accessDenied: 'Access Denied',
+    invalidCredentials: 'Invalid credentials. Please verify and try again.',
+    tooManyRequests: 'Too many failed attempts. Please wait and try again.',
+    userDisabled: 'This account has been disabled.',
+    invalidEmail: 'The email format is not valid.',
+    networkError: 'No connection. Check your network and try again.',
+    generic: 'An error occurred. Please try again.',
+    emailInUse: 'This email is already in use.',
+    signInPrompt: 'Want to sign in?',
+    googleError: 'Could not sign in with Google. Please try again.',
+    profileError: 'Could not save your profile. Please try again.',
+    resetError: 'Could not send the email. Verify the address and try again.',
+    accountCreated: 'Account created',
+    welcomeMsg: 'Welcome to StudySphere!',
+    profileSavedTitle: 'Done!',
+    profileSavedMsg: 'Your profile has been completed.',
+  },
+
+  strength: {
+    veryWeak: 'Very weak',
+    weak: 'Weak',
+    fair: 'Fair',
+    strong: 'Strong',
+    veryStrong: 'Very strong',
+  },
+} as const;
