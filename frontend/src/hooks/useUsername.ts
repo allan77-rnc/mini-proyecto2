@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import { db } from '../lib/firebase';
+import { api } from '../lib/api';
 
 export type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
 /**
- * Validates username format and checks real-time availability in Firestore.
- * Debounces the Firestore lookup by 500 ms to limit reads while the user types.
+ * Validates username format and checks real-time availability via the REST API.
+ * Debounces the network lookup by 500 ms to limit requests while the user types.
  *
  * @param username - Raw value from the username input field
  * @returns `status`, `error`, `isValid`, `isChecking`
@@ -47,13 +46,15 @@ export function useUsername(username: string) {
 
     const timer = setTimeout(async () => {
       try {
-        const snap = await getDoc(doc(db, 'usernames', username.toLowerCase()));
-        if (snap.exists()) {
-          setStatus('taken');
-          setError(t('validation.usernameTaken'));
-        } else {
+        const { available } = await api.get<{ available: boolean }>(
+          `/api/users/username/${encodeURIComponent(username.toLowerCase())}/available`
+        );
+        if (available) {
           setStatus('available');
           setError(null);
+        } else {
+          setStatus('taken');
+          setError(t('validation.usernameTaken'));
         }
       } catch {
         setStatus('idle');
