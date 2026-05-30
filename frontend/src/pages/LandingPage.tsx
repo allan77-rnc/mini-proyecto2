@@ -210,41 +210,42 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
-      <section id="features" className="bg-[#0f1f35] py-20 px-6">
+      {/* ── FEATURES: Video + Chat cards ── */}
+      <section id="features" className="bg-[#eef0f8] py-20 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-white mb-3">
+          {/* Heading */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-[#0f1f35] mb-3">
               Precision Tools for Serious Scholars
             </h2>
-            <p className="text-gray-400 text-base max-w-xl mx-auto leading-relaxed">
+            <p className="text-gray-500 text-base max-w-xl mx-auto leading-relaxed">
               Our platform integrates seamlessly into your academic workflow, providing
               high-contrast clarity and structured environments.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Card 1 — Video */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              {/* Preview area */}
-              <div className="h-36 bg-gradient-to-br from-slate-700/50 to-slate-800/50 flex items-center justify-center relative overflow-hidden">
-                <div className="grid grid-cols-2 gap-2 p-4 w-full">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="bg-white/10 rounded-lg h-12 border border-white/5 flex items-center justify-center">
-                      <div className="w-5 h-5 rounded-full bg-teal-400/50" />
-                    </div>
-                  ))}
+            {/* Card 1 — Real-Time Video & Audio */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+              {/* Video grid preview */}
+              <div className="relative h-52 overflow-hidden">
+                <div className="absolute inset-0 grid grid-cols-2">
+                  {/* Left tile — lighter */}
+                  <div className="bg-gradient-to-b from-gray-50 to-gray-150" />
+                  {/* Right tile — slightly darker */}
+                  <div className="bg-gradient-to-b from-gray-200 to-gray-300" />
                 </div>
-                {/* Active speaker highlight */}
-                <div className="absolute inset-0 border-2 border-teal-400/30 rounded-none pointer-events-none" />
+                {/* Subtle active-speaker teal border at bottom */}
+                <div className="absolute bottom-0 inset-x-0 h-1 bg-teal-400/60" />
               </div>
-              <div className="p-5">
-                <div className="w-9 h-9 bg-teal-500/20 rounded-xl flex items-center justify-center mb-3">
-                  <IconCamera size={18} className="text-teal-400" />
+              {/* Content */}
+              <div className="p-6 flex flex-col flex-1">
+                <div className="w-11 h-11 bg-[#1e3252] rounded-xl flex items-center justify-center mb-4">
+                  <IconCamera size={20} className="text-white" />
                 </div>
-                <h3 className="text-white font-semibold mb-2">Real-Time Video & Audio</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
+                <h3 className="text-[#0f1f35] font-bold text-lg mb-2">Real-Time Video & Audio</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
                   Dynamic fluid grid layouts that automatically reflow. Active speaker
                   highlighting utilizing high-contrast Teal borders ensures you never miss
                   a cue during complex discussions.
@@ -252,69 +253,78 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Card 2 — Chat */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <div className="w-9 h-9 bg-teal-500/20 rounded-xl flex items-center justify-center mb-3">
-                <IconMessageSquare size={18} className="text-teal-400" />
+            {/* Card 2 — Persistent Chat */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col">
+              <div className="w-11 h-11 bg-teal-500 rounded-xl flex items-center justify-center mb-4">
+                <IconMessageSquare size={20} className="text-white" />
               </div>
-              <h3 className="text-white font-semibold mb-2">Persistent Chat</h3>
-              <p className="text-gray-400 text-sm leading-relaxed mb-5">
+              <h3 className="text-[#0f1f35] font-bold text-lg mb-2">Persistent Chat</h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 Threaded conversations, file attachments, and searchable histories mapped
                 perfectly to the fixed sidebar grid.
               </p>
 
-              {/* Chat preview */}
-              <div className="bg-black/30 rounded-xl p-3 space-y-3 border border-white/5">
-                {[
-                  { init: 'JS', w1: 'w-3/4', w2: 'w-1/2' },
-                  { init: 'AK', w1: 'w-2/3', w2: 'w-3/4' },
-                ].map(({ init, w1, w2 }) => (
-                  <div key={init} className="flex items-start gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-teal-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
-                      {init}
-                    </div>
-                    <div className="flex-1 space-y-1.5">
-                      <div className={`h-2 bg-white/25 rounded-full ${w1}`} />
-                      <div className={`h-2 bg-white/12 rounded-full ${w2}`} />
-                    </div>
+              {/* Chat message preview */}
+              <div className="mt-auto bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-800 flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-2.5 bg-gray-200 rounded-full w-3/4" />
+                    <div className="h-2.5 bg-gray-150 rounded-full w-1/2" />
                   </div>
-                ))}
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
 
-            {/* Card 3 — Screen sharing (dark accent) */}
-            <div className="bg-[#1e3252] border border-[#2a4470] rounded-2xl p-5 flex flex-col">
-              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center mb-3">
-                <IconMonitor size={18} className="text-white" />
+      {/* ── SCREEN SHARING BANNER ── */}
+      <section className="bg-[#eef0f8] pb-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-[#1e3252] rounded-2xl px-10 py-14 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center overflow-hidden">
+
+            {/* Left — copy */}
+            <div>
+              <div className="w-11 h-11 border-2 border-white/25 rounded-xl flex items-center justify-center mb-6">
+                <IconMonitor size={22} className="text-white" />
               </div>
-              <h3 className="text-white font-semibold mb-2">Flawless Screen Sharing</h3>
-              <p className="text-gray-400 text-sm leading-relaxed mb-5">
+              <h3 className="text-3xl font-bold text-white mb-4 leading-snug">
+                Flawless Screen Sharing
+              </h3>
+              <p className="text-blue-200/75 text-sm leading-relaxed mb-8">
                 Share presentations, code IDEs, or digital whiteboards with minimal
                 latency. Our focus-first layout minimizes the UI chrome to prioritize
                 your canvas.
               </p>
-
-              {/* Window preview */}
-              <div className="flex-1 bg-black/30 rounded-xl border border-white/10 overflow-hidden">
-                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
-                </div>
-                <div className="p-3 space-y-2">
-                  <div className="h-2 bg-white/20 rounded w-3/4" />
-                  <div className="h-10 bg-white/5 rounded border border-white/10" />
-                  <div className="h-2 bg-white/15 rounded w-1/2" />
-                </div>
-              </div>
-
               <button
                 onClick={() => navigate('/register')}
-                className="mt-4 flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition-colors"
+                className="inline-flex items-center gap-2 bg-white text-[#1e3252] font-semibold text-sm px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
               >
                 See it in action
-                <IconArrowRight size={14} />
+                <IconArrowRight size={15} />
               </button>
+            </div>
+
+            {/* Right — browser window mock */}
+            <div className="flex justify-center lg:justify-end">
+              <div
+                className="w-full max-w-xs lg:max-w-sm"
+                style={{ transform: 'perspective(900px) rotateY(-10deg) rotateX(3deg)' }}
+              >
+                {/* Window chrome */}
+                <div className="bg-[#d9dce6] rounded-t-xl px-4 py-3 flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                </div>
+                {/* Window body */}
+                <div className="bg-white rounded-b-xl p-5 space-y-3.5 shadow-2xl">
+                  <div className="h-3 bg-gray-200 rounded-full w-1/2" />
+                  <div className="h-24 bg-gray-50 rounded-lg border border-gray-200" />
+                  <div className="h-3 bg-gray-200 rounded-full w-2/3" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
