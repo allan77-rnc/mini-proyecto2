@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 
 export type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
+
+function validateUsernameFormat(value: string, t: (key: string) => string): string | null {
+  if (!value) return null;
+  if (value.length < 3) return t('validation.usernameMin');
+  if (value.length > 20) return t('validation.usernameMax');
+  if (!/^[a-zA-Z0-9_-]+$/.test(value)) return t('validation.usernameChars');
+  return null;
+}
 
 /**
  * Validates username format and checks real-time availability via the REST API.
@@ -13,57 +21,52 @@ export type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'inva
  */
 export function useUsername(username: string) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState<UsernameStatus>('idle');
-  const [error, setError] = useState<string | null>(null);
+  const formatError = useMemo(() => validateUsernameFormat(username, t), [username, t]);
 
-  const validateFormat = useCallback(
-    (value: string): string | null => {
-      if (!value) return null;
-      if (value.length < 3) return t('validation.usernameMin');
-      if (value.length > 20) return t('validation.usernameMax');
-      if (!/^[a-zA-Z0-9_-]+$/.test(value)) return t('validation.usernameChars');
-      return null;
-    },
-    [t]
-  );
+  const [apiResult, setApiResult] = useState<{ status: UsernameStatus; error: string | null }>({
+    status: 'idle',
+    error: null,
+  });
+  const pendingUsernameRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!username) {
-      setStatus('idle');
-      setError(null);
+    if (formatError || !username) {
+      pendingUsernameRef.current = null;
       return;
     }
 
-    const formatError = validateFormat(username);
-    if (formatError) {
-      setStatus('invalid');
-      setError(formatError);
-      return;
-    }
-
-    setStatus('checking');
-    setError(null);
+    pendingUsernameRef.current = username;
+    startTransition(() => {
+      setApiResult({ status: 'checking', error: null });
+    });
 
     const timer = setTimeout(async () => {
+      const checkFor = pendingUsernameRef.current;
+      if (!checkFor) return;
+
       try {
         const { available } = await api.get<{ available: boolean }>(
-          `/api/users/username/${encodeURIComponent(username.toLowerCase())}/available`
+          `/api/users/username/${encodeURIComponent(checkFor.toLowerCase())}/available`
         );
-        if (available) {
-          setStatus('available');
-          setError(null);
-        } else {
-          setStatus('taken');
-          setError(t('validation.usernameTaken'));
-        }
+        if (pendingUsernameRef.current !== checkFor) return;
+        setApiResult({
+          status: available ? 'available' : 'taken',
+          error: available ? null : t('validation.usernameTaken'),
+        });
       } catch {
-        setStatus('idle');
-        setError(null);
+        if (pendingUsernameRef.current !== checkFor) return;
+        setApiResult({ status: 'idle', error: null });
       }
     }, 500);
 
-    return () => clearTimeout(timer);
-  }, [username, validateFormat, t]);
+    return () => {
+      pendingUsernameRef.current = null;
+      clearTimeout(timer);
+    };
+  }, [username, t, formatError]);
 
-  return { status, error, isValid: status === 'available', isChecking: status === 'checking' };
+  const status = formatError ? 'invalid' : apiResult.status;
+  const error = formatError || apiResult.error;
+
+  return { status, error, isValid: status === 'available', isChecking: apiResult.status === 'checking' };
 }

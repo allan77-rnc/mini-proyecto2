@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../contexts/useToast';
 import { ToastContainer } from '../components/Toast';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import {
-  IconGraduationCap, IconMail, IconLock, IconEye, IconEyeOff,
+  IconGraduationCap, IconMail, IconEye, IconEyeOff,
   IconSpinner, IconAlertCircle, IconMail2, IconCheckCircle, IconGoogle,
 } from '../components/icons';
 

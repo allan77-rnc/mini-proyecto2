@@ -1,4 +1,4 @@
-import { useAuthContext } from '../contexts/AuthContext';
+import { useAuthContext } from '../contexts/useAuthContext';
 
 /**
  * Hook for accessing Firebase authentication state and operations.

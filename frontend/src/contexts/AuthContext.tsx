@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useEffect, useState, type ReactNode } from 'react';
 import {
   signInWithEmailAndPassword,
   signInWithCustomToken,
@@ -16,7 +16,7 @@ import type {
   CompleteProfilePayload,
 } from '../types/auth';
 
-interface AuthContextValue extends AuthState {
+export interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (payload: RegisterPayload) => Promise<void>;
   signInWithGoogle: () => Promise<{ needsProfile: boolean }>;
@@ -25,7 +25,7 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -98,8 +98,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuthContext(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuthContext must be used inside <AuthProvider>');
-  return ctx;
-}
+

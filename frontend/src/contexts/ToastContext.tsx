@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useState, useCallback, type ReactNode } from 'react';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -16,13 +16,13 @@ export interface Toast {
   action?: ToastAction;
 }
 
-interface ToastContextValue {
+export interface ToastContextValue {
   toasts: Toast[];
   showToast: (type: ToastType, title: string, message?: string, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue | null>(null);
+export const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -47,13 +47,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Hook for triggering and managing toast notifications.
- *
- * @returns `toasts` list, `showToast(type, title, message?, action?)`, `dismissToast(id)`
- */
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used inside <ToastProvider>');
-  return ctx;
-}
+
