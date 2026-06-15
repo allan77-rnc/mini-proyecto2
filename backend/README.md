@@ -1,98 +1,164 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# mini-proyecto2 — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API + WebSocket server for the collaborative study platform.  
+Built with NestJS 11, Firebase Admin SDK, and Socket.io.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- **NestJS 11** + TypeScript (strict, nodenext)
+- **Firebase Admin SDK** — Auth + Firestore
+- **Socket.io** via `@nestjs/websockets`
+- **Swagger UI** at `/api/docs`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Setup
 
 ```bash
-$ yarn install
+bun install
 ```
 
-## Compile and run the project
+Copy `.env.example` to `.env` and fill in the values:
+
+```env
+PORT=3000
+FRONTEND_URL=http://localhost:5173
+# Optional: comma-separated list of allowed CORS origins (overrides FRONTEND_URL)
+ALLOWED_ORIGINS=http://localhost:5173,https://your-deploy-url.com
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=       # paste exactly from service account JSON (\n as literal \n)
+FIREBASE_WEB_API_KEY=       # Firebase Console → Project Settings → General → Web API Key
+```
+
+Get `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` from:  
+Firebase Console → Project Settings → Service Accounts → Generate new private key.
+
+## Running
 
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+bun run start:dev   # watch mode
+bun run start:prod  # production
+bun run build       # compile only
+bun run lint        # ESLint
 ```
 
-## Run tests
+## API Endpoints
 
+Base path: `/api`. Swagger UI: `http://localhost:3000/api/docs`
+
+### Auth (`/api/auth`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/register` | — | Create account (email/password) |
+| POST | `/google` | — | Verify Google ID token |
+| POST | `/google/complete-profile` | Bearer | Complete Google sign-up with username |
+| POST | `/reset-password` | — | Send password reset email |
+| GET | `/me` | Bearer | Get own profile |
+
+### Users (`/api/users`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/username/:username/available` | — | Check username availability |
+| GET | `/me` | Bearer | Get own profile |
+| PATCH | `/me` | Bearer | Update profile (firstName, lastName, avatarUrl, username, email) |
+| DELETE | `/me` | Bearer | Delete own account |
+
+### Rooms (`/api/rooms`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/` | Bearer | Create a room |
+| GET | `/` | Bearer | List own rooms |
+| GET | `/:id` | Bearer | Get a room by ID |
+| DELETE | `/:id` | Bearer | Delete a room (host only) |
+
+## WebSocket — Rooms Gateway
+
+**Namespace:** `/rooms`  
+**URL:** `ws://localhost:3000/rooms` (or `wss://` in production)
+
+Auth is passed per-event as `idToken` (Firebase ID token), not in the connection handshake.
+
+### Events
+
+| Client → Server | Payload | Description |
+|---|---|---|
+| `join-room` | `{ roomId, idToken }` | Join a room channel |
+| `leave-room` | — | Leave current room |
+| `send-message` | `{ roomId, text, idToken }` | Send a message |
+
+| Server → Client | Payload | Description |
+|---|---|---|
+| `room:joined` | `{ roomId }` | Confirms join (to the joining client) |
+| `room:user-joined` | `{ username }` | Someone joined (to others in room) |
+| `room:user-left` | `{ username }` | Someone left (to others in room) |
+| `room:message` | `{ id, roomId, senderUid, senderUsername, text, createdAt }` | New message (to all in room) |
+
+### Frontend integration
+
+**Install:**
 ```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+bun add socket.io-client
 ```
 
-## Deployment
+**Connect:**
+```ts
+import { io } from 'socket.io-client';
+import { getAuth } from 'firebase/auth';
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+const socket = io('http://localhost:3000/rooms', {
+  transports: ['websocket'],
+  autoConnect: false,
+});
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+async function getIdToken() {
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('Not authenticated');
+  return user.getIdToken();
+}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Join a room:**
+```ts
+socket.connect();
 
-## Resources
+socket.on('connect', async () => {
+  const idToken = await getIdToken();
+  socket.emit('join-room', { roomId: '<room-uuid>', idToken });
+});
 
-Check out a few resources that may come in handy when working with NestJS:
+socket.on('room:joined', ({ roomId }) => {
+  console.log('Joined room', roomId);
+});
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+socket.on('room:user-joined', ({ username }) => {
+  console.log(username, 'joined');
+});
 
-## Support
+socket.on('room:user-left', ({ username }) => {
+  console.log(username, 'left');
+});
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+**Send and receive messages:**
+```ts
+socket.on('room:message', (msg) => {
+  // { id, roomId, senderUid, senderUsername, text, createdAt }
+  console.log(`[${msg.senderUsername}]: ${msg.text}`);
+});
 
-## Stay in touch
+async function sendMessage(roomId: string, text: string) {
+  const idToken = await getIdToken();
+  socket.emit('send-message', { roomId, text, idToken });
+}
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+**Leave:**
+```ts
+socket.emit('leave-room');  // notify others
+socket.disconnect();        // close connection
+```
 
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+> **Note:** Firebase ID tokens expire after 1 hour. If the user has been idle, refresh before emitting:  
+> `await user.getIdToken(true)`
