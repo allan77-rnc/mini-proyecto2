@@ -14,6 +14,7 @@ export interface IRoomsRepository {
   create(room: Omit<Room, 'createdAt' | 'updatedAt'>): Promise<Room>;
   findByHost(hostUid: string): Promise<Room[]>;
   findById(id: string): Promise<Room | null>;
+  update(id: string, updates: { name: string }): Promise<Room>;
   delete(id: string): Promise<void>;
 }
 
