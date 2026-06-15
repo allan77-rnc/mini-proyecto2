@@ -43,4 +43,8 @@ export const api = {
     const { data } = await client.patch<T>(path, body);
     return data;
   },
+  async del<T>(path: string): Promise<T> {
+    const { data } = await client.delete<T>(path);
+    return data;
+  },
 };

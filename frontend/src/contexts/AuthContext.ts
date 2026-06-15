@@ -1,5 +1,11 @@
 import { createContext } from 'react';
-import type { AuthState, RegisterPayload, CompleteProfilePayload } from '../types/auth';
+import type {
+  AuthState,
+  RegisterPayload,
+  CompleteProfilePayload,
+  UpdateProfilePayload,
+  UserProfile,
+} from '../types/auth';
 
 export interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<void>;
@@ -7,6 +13,8 @@ export interface AuthContextValue extends AuthState {
   signInWithGoogle: () => Promise<{ needsProfile: boolean }>;
   completeProfile: (payload: CompleteProfilePayload) => Promise<void>;
   sendResetEmail: (email: string) => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<UserProfile>;
+  deleteAccount: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
