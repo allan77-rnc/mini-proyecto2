@@ -26,6 +26,9 @@ export class FirebaseService implements OnModuleInit {
       this.app = getApps()[0]!;
     }
 
+    // Ignore undefined fields globally so optional DTO fields don't break writes
+    getFirestore(this.app).settings({ ignoreUndefinedProperties: true });
+
     this.logger.log('Firebase Admin SDK initialized');
   }
 
