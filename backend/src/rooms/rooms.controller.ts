@@ -7,6 +7,7 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -27,7 +28,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { UsersService } from '../users/users.service';
 import { CreateRoomDto } from './dto/create-room.dto';
+import { MessageResponse } from './dto/message-response.dto';
 import { RoomResponse } from './dto/room-response.dto';
+import { UpdateRoomDto } from './dto/update-room.dto';
+import type { Message } from './repositories/messages.repository';
 import type { Room } from './repositories/rooms.repository.interface';
 import { RoomsService } from './rooms.service';
 
@@ -42,6 +46,17 @@ function toRoomResponse(room: Room): RoomResponse {
     participantCount: room.participantCount,
     createdAt: room.createdAt.toISOString(),
     updatedAt: room.updatedAt.toISOString(),
+  };
+}
+
+function toMessageResponse(msg: Message): MessageResponse {
+  return {
+    id: msg.id,
+    roomId: msg.roomId,
+    senderUid: msg.senderUid,
+    senderUsername: msg.senderUsername,
+    text: msg.text,
+    createdAt: msg.createdAt.toISOString(),
   };
 }
 
@@ -90,6 +105,22 @@ export class RoomsController {
     return toRoomResponse(room);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Edit room name (host only)' })
+  @ApiParam({ name: 'id', example: 'abc123' })
+  @ApiOkResponse({ type: RoomResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiForbiddenResponse({ description: 'Only the host can edit this room' })
+  @ApiNotFoundResponse({ description: 'Room not found' })
+  async updateRoom(
+    @Param('id') id: string,
+    @CurrentUser() user: DecodedIdToken,
+    @Body() dto: UpdateRoomDto,
+  ): Promise<RoomResponse> {
+    const room = await this.roomsService.updateRoom(id, user.uid, dto);
+    return toRoomResponse(room);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a room (host only)' })
@@ -103,5 +134,18 @@ export class RoomsController {
     @CurrentUser() user: DecodedIdToken,
   ): Promise<void> {
     await this.roomsService.deleteRoom(id, user.uid);
+  }
+
+  @Get(':id/messages')
+  @ApiOperation({ summary: 'Get chat history for a room (last 50 messages, chronological)' })
+  @ApiParam({ name: 'id', example: 'abc123' })
+  @ApiOkResponse({ type: [MessageResponse] })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiNotFoundResponse({ description: 'Room not found' })
+  async getMessages(@Param('id') id: string): Promise<MessageResponse[]> {
+    // Verify room exists before fetching messages
+    await this.roomsService.getRoom(id);
+    const messages = await this.roomsService.getMessages(id);
+    return messages.map(toMessageResponse);
   }
 }
