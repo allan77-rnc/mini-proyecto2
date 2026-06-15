@@ -67,6 +67,35 @@ export class UsersRepository implements IUsersRepository {
     return this.toProfile(updated.data() as FirestoreUserDoc);
   }
 
+  async changeUsername(uid: string, oldUsername: string, newUsername: string): Promise<UserProfile> {
+    const oldRef = this.firebase.firestore.collection(USERNAMES).doc(oldUsername.toLowerCase());
+    const newRef = this.firebase.firestore.collection(USERNAMES).doc(newUsername.toLowerCase());
+    const userRef = this.firebase.firestore.collection(USERS).doc(uid);
+
+    await this.firebase.firestore.runTransaction(async (tx) => {
+      const newSnap = await tx.get(newRef);
+      if (newSnap.exists) {
+        throw new ConflictException(`Username "${newUsername}" is already taken`);
+      }
+      tx.delete(oldRef);
+      tx.set(newRef, { uid });
+      tx.update(userRef, { username: newUsername, updatedAt: FieldValue.serverTimestamp() });
+    });
+
+    const updated = await userRef.get();
+    return this.toProfile(updated.data() as FirestoreUserDoc);
+  }
+
+  async delete(uid: string, username: string): Promise<void> {
+    const userRef = this.firebase.firestore.collection(USERS).doc(uid);
+    const usernameRef = this.firebase.firestore.collection(USERNAMES).doc(username.toLowerCase());
+
+    const batch = this.firebase.firestore.batch();
+    batch.delete(userRef);
+    batch.delete(usernameRef);
+    await batch.commit();
+  }
+
   private toProfile(doc: FirestoreUserDoc): UserProfile {
     return {
       uid: doc.uid,

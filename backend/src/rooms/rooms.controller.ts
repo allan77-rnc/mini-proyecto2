@@ -1,0 +1,107 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import type { DecodedIdToken } from 'firebase-admin/auth';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { UsersService } from '../users/users.service';
+import { CreateRoomDto } from './dto/create-room.dto';
+import { RoomResponse } from './dto/room-response.dto';
+import type { Room } from './repositories/rooms.repository.interface';
+import { RoomsService } from './rooms.service';
+
+function toRoomResponse(room: Room): RoomResponse {
+  return {
+    id: room.id,
+    name: room.name,
+    description: room.description,
+    hostUid: room.hostUid,
+    hostUsername: room.hostUsername,
+    isActive: room.isActive,
+    participantCount: room.participantCount,
+    createdAt: room.createdAt.toISOString(),
+    updatedAt: room.updatedAt.toISOString(),
+  };
+}
+
+@ApiTags('rooms')
+@UseGuards(FirebaseAuthGuard)
+@ApiBearerAuth('firebase')
+@Controller('rooms')
+export class RoomsController {
+  constructor(
+    private readonly roomsService: RoomsService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new study room' })
+  @ApiCreatedResponse({ type: RoomResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiNotFoundResponse({ description: 'Host profile not found' })
+  async createRoom(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() dto: CreateRoomDto,
+  ): Promise<RoomResponse> {
+    const host = await this.usersService.findByUid(user.uid);
+    if (!host) throw new NotFoundException('User profile not found');
+    const room = await this.roomsService.createRoom(host, dto);
+    return toRoomResponse(room);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List own rooms (hosted by the current user)' })
+  @ApiOkResponse({ type: [RoomResponse] })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  async getOwnRooms(@CurrentUser() user: DecodedIdToken): Promise<RoomResponse[]> {
+    const rooms = await this.roomsService.getOwnRooms(user.uid);
+    return rooms.map(toRoomResponse);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a room by ID' })
+  @ApiParam({ name: 'id', example: 'abc123' })
+  @ApiOkResponse({ type: RoomResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiNotFoundResponse({ description: 'Room not found' })
+  async getRoom(@Param('id') id: string): Promise<RoomResponse> {
+    const room = await this.roomsService.getRoom(id);
+    return toRoomResponse(room);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a room (host only)' })
+  @ApiParam({ name: 'id', example: 'abc123' })
+  @ApiNoContentResponse({ description: 'Room deleted' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiForbiddenResponse({ description: 'Only the host can delete this room' })
+  @ApiNotFoundResponse({ description: 'Room not found' })
+  async deleteRoom(
+    @Param('id') id: string,
+    @CurrentUser() user: DecodedIdToken,
+  ): Promise<void> {
+    await this.roomsService.deleteRoom(id, user.uid);
+  }
+}

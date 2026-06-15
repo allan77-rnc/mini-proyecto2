@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
@@ -9,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -49,23 +53,6 @@ export class UsersController {
     return { available, username };
   }
 
-  @Patch('me')
-  @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth('firebase')
-  @ApiOperation({
-    summary: 'Update own profile (firstName, lastName, avatarUrl)',
-  })
-  @ApiOkResponse({ type: UserProfileResponse })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
-  @ApiNotFoundResponse({ description: 'User profile not found in Firestore' })
-  async updateProfile(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() dto: UpdateProfileDto,
-  ): Promise<UserProfileResponse> {
-    const updated = await this.usersService.updateProfile(user.uid, dto);
-    return toUserProfileResponse(updated);
-  }
-
   @Get('me')
   @UseGuards(FirebaseAuthGuard)
   @ApiBearerAuth('firebase')
@@ -79,5 +66,34 @@ export class UsersController {
     const profile = await this.usersService.findByUid(user.uid);
     if (!profile) throw new NotFoundException('User profile not found');
     return toUserProfileResponse(profile);
+  }
+
+  @Patch('me')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth('firebase')
+  @ApiOperation({
+    summary: 'Update own profile (firstName, lastName, avatarUrl, username, email)',
+  })
+  @ApiOkResponse({ type: UserProfileResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiNotFoundResponse({ description: 'User profile not found in Firestore' })
+  async updateProfile(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<UserProfileResponse> {
+    const updated = await this.usersService.updateProfile(user.uid, dto);
+    return toUserProfileResponse(updated);
+  }
+
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth('firebase')
+  @ApiOperation({ summary: 'Delete own account (Firestore profile + Firebase Auth user)' })
+  @ApiNoContentResponse({ description: 'Account deleted successfully' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  @ApiNotFoundResponse({ description: 'User profile not found in Firestore' })
+  async deleteAccount(@CurrentUser() user: DecodedIdToken): Promise<void> {
+    await this.usersService.deleteAccount(user.uid);
   }
 }
