@@ -32,6 +32,13 @@ export {
   Plus              as IconPlus,
   Calendar          as IconCalendar,
   BookOpen          as IconBookOpen,
+  Pencil            as IconPencil,
+  Trash2            as IconTrash,
+  LogIn             as IconLogIn,
+  Send              as IconSend,
+  MoreVertical      as IconMoreVertical,
+  ArrowLeft         as IconArrowLeft,
+  Hash              as IconHash,
 } from 'lucide-react';
 
 /** Spinner animado — envuelve Loader2 con animate-spin */
