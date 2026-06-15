@@ -5,7 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../contexts/useToast';
 import { useUsername } from '../hooks/useUsername';
 import { ToastContainer } from '../components/Toast';
-import type { UpdateProfilePayload, UserProfile } from '../types/auth';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import type { UpdateProfilePayload } from '../types/auth';
 import {
   IconGraduationCap, IconUser, IconMail, IconAlertCircle,
   IconCheckCircle, IconSpinner, IconBell, IconSettings, IconSave,
@@ -13,19 +14,6 @@ import {
   IconAlertTriangle, IconCamera,
 } from '../components/icons';
 import { IconGoogle } from '../components/icons';
-
-/* ─── Mock data (bypasses Firebase auth for preview) ─────────────── */
-const MOCK_USER: UserProfile = {
-  uid: 'mock-uid-123',
-  email: 'alex.j@university.edu',
-  firstName: 'Alex',
-  lastName: 'Johnson',
-  username: 'alex_j_studies',
-  avatarUrl: '',
-  provider: 'email',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
 function conflictField(err: { code?: string; message?: string }): 'username' | 'email' | null {
@@ -192,41 +180,28 @@ function DeleteAccountModal({ onClose, onConfirm }: { onClose: () => void; onCon
 /* ─── ProfilePage ────────────────────────────────────────────────── */
 export function ProfilePage() {
   const { t } = useTranslation();
-  const { user: authUser, updateProfile: authUpdateProfile, deleteAccount: authDeleteAccount, signOut } = useAuth();
+  const { user, updateProfile, deleteAccount, signOut } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  /* Mock fallback */
-  const isMock = !authUser;
-  const user = authUser ?? MOCK_USER;
-
-  async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
-    if (isMock) {
-      await new Promise(r => setTimeout(r, 800));
-      return { ...user, ...payload };
-    }
-    return authUpdateProfile(payload);
-  }
-
-  async function deleteAccount() {
-    if (isMock) { await new Promise(r => setTimeout(r, 1000)); return; }
-    return authDeleteAccount();
-  }
-
   /* ── Form state ── */
-  const [fullName, setFullName] = useState(`${user.firstName} ${user.lastName}`.trim());
-  const [username, setUsername] = useState(user.username);
+  const [fullName, setFullName] = useState(`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim());
+  const [username, setUsername] = useState(user?.username ?? '');
   const [bio, setBio] = useState('Computer Science major focusing on AI and Machine Learning. Always looking for study groups in Calculus and Data Structures.');
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(false);
   const [errors, setErrors] = useState<{ fullName?: string; username?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
-  const usernameChanged = username.trim() !== user.username;
+  const usernameChanged = username.trim() !== (user?.username ?? '');
   const { status: usernameStatus, error: usernameApiError, isChecking } = useUsername(
     usernameChanged ? username.trim() : ''
   );
+
+  // Guaranteed non-null by ProtectedRoute — guard is here after all hooks
+  if (!user) return null;
 
   const initials = ((user.firstName[0] ?? '') + (user.lastName[0] ?? '')).toUpperCase() || '?';
 
@@ -253,8 +228,8 @@ export function ProfilePage() {
     const payload: UpdateProfilePayload = {};
     const newFirst = parts[0] ?? '';
     const newLast = parts.slice(1).join(' ');
-    if (newFirst !== user.firstName) payload.firstName = newFirst;
-    if (newLast !== user.lastName) payload.lastName = newLast;
+    if (newFirst !== user!.firstName) payload.firstName = newFirst;
+    if (newLast !== user!.lastName) payload.lastName = newLast;
     if (usernameChanged) payload.username = username.trim();
 
     if (Object.keys(payload).length === 0) {
@@ -286,8 +261,7 @@ export function ProfilePage() {
 
   async function handleDelete() {
     await deleteAccount();
-    await signOut().catch(() => undefined);
-    navigate(isMock ? '/profile' : '/login', { replace: true });
+    navigate('/login', { replace: true });
   }
 
   async function handleSignOut() {
@@ -307,13 +281,6 @@ export function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastContainer />
-
-      {/* ── Preview banner ── */}
-      {isMock && (
-        <div className="bg-amber-400 text-amber-900 text-center text-xs font-semibold py-1.5">
-          Modo vista previa — datos de prueba, sin conexión a Firebase
-        </div>
-      )}
 
       {/* ── Nav ── */}
       <header className="bg-white border-b border-gray-200">
@@ -337,6 +304,7 @@ export function ProfilePage() {
 
           {/* Right icons */}
           <div className="flex items-center gap-3">
+            <LanguageSwitcher variant="light" />
             <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
               <IconBell size={18} />
             </button>
@@ -349,8 +317,8 @@ export function ProfilePage() {
               className="w-8 h-8 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden"
               title={t('dashboard.signOut')}
             >
-              {user.avatarUrl
-                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+              {user.avatarUrl && !avatarError
+                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
                 : <span className="text-white text-xs font-bold">{initials}</span>
               }
             </button>
@@ -388,8 +356,8 @@ export function ProfilePage() {
               <div className="md:w-72 flex-shrink-0 border-b md:border-b-0 md:border-r border-dashed border-blue-200 p-8 flex flex-col items-center">
                 {/* Avatar */}
                 <div className="w-28 h-28 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden mb-4">
-                  {user.avatarUrl
-                    ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  {user.avatarUrl && !avatarError
+                    ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
                     : <span className="text-white text-3xl font-bold">{initials}</span>
                   }
                 </div>

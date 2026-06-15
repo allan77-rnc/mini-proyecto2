@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
-          const profile = await api.get<UserProfile>('/api/auth/me');
+          const profile = await api.get<UserProfile>('/api/users/me');
           setState({ user: profile, firebaseUid: fbUser.uid, initialized: true });
         } catch {
           setState({ user: null, firebaseUid: fbUser.uid, initialized: true });
