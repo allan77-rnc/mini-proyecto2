@@ -10,9 +10,18 @@ async function bootstrap(): Promise<void> {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS
+  // CORS — supports multiple origins via comma-separated ALLOWED_ORIGINS env var
+  const rawOrigins = process.env['ALLOWED_ORIGINS'] ?? process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+  const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
   app.enableCors({
-    origin: process.env['FRONTEND_URL'] ?? 'http://localhost:5173',
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin (e.g. curl, Swagger UI, mobile apps)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   });
 
