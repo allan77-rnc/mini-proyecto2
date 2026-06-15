@@ -47,6 +47,17 @@ export class RoomsRepository implements IRoomsRepository {
     return this.toRoom(snap.data() as FirestoreRoomDoc);
   }
 
+  async update(id: string, updates: { name: string }): Promise<Room> {
+    const ref = this.firebase.firestore.collection(ROOMS).doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) throw new NotFoundException(`Room ${id} not found`);
+
+    await ref.update({ ...updates, updatedAt: FieldValue.serverTimestamp() });
+
+    const updated = await ref.get();
+    return this.toRoom(updated.data() as FirestoreRoomDoc);
+  }
+
   async delete(id: string): Promise<void> {
     const ref = this.firebase.firestore.collection(ROOMS).doc(id);
     const snap = await ref.get();
