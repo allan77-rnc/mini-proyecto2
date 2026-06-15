@@ -43,6 +43,10 @@ export {
   X                 as IconX,
   Copy              as IconCopy,
   Key               as IconKey,
+  FolderOpen        as IconFolder,
+  StickyNote        as IconNote,
+  HelpCircle        as IconHelp,
+  LogOut            as IconLogOut,
 } from 'lucide-react';
 
 /** Spinner animado — envuelve Loader2 con animate-spin */

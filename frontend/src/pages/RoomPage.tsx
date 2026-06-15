@@ -6,16 +6,16 @@ import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import type { Room, ChatMessage } from '../types/room';
 import {
-  IconGraduationCap, IconArrowLeft, IconPencil, IconTrash,
-  IconSend, IconSpinner, IconAlertTriangle, IconHash, IconUsers,
-  IconCopy, IconX, IconCheckCircle,
+  IconBookOpen, IconUsers, IconMessageSquare, IconUserPlus,
+  IconPencil, IconTrash, IconSend, IconSpinner, IconAlertTriangle,
+  IconMoreVertical, IconCopy, IconX, IconCheckCircle,
+  IconFolder, IconNote, IconHelp, IconLogOut,
 } from '../components/icons';
 
 const WS_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000')
   .replace(/\/api\/?$/, '')
   .replace(/\/$/, '');
 
-/* ─── Helpers ─────────────────────────────────────────────────────── */
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
@@ -142,11 +142,13 @@ export function RoomPage() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showHostMenu, setShowHostMenu] = useState(false);
 
   const [showShareBanner, setShowShareBanner] = useState(
     !!(location.state as { justCreated?: boolean } | null)?.justCreated
   );
   const [copied, setCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -195,9 +197,7 @@ export function RoomPage() {
     });
 
     socket.on('room:joined', () => setConnected(true));
-
     socket.on('room:message', (msg: ChatMessage) => addMessage(msg));
-
     socket.on('room:user-joined', () => setOnlineCount(c => c + 1));
     socket.on('room:user-left', () => setOnlineCount(c => Math.max(1, c - 1)));
 
@@ -224,7 +224,7 @@ export function RoomPage() {
     }
   }
 
-  /* ── Copy room ID ── */
+  /* ── Copy room ID (share banner) ── */
   async function handleCopyId() {
     if (!id) return;
     await navigator.clipboard.writeText(id);
@@ -232,10 +232,18 @@ export function RoomPage() {
     setTimeout(() => setCopied(false), 2500);
   }
 
+  /* ── Invite Member (sidebar button) ── */
+  async function handleInvite() {
+    if (!id) return;
+    await navigator.clipboard.writeText(id);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2500);
+  }
+
   /* ── Loading / error states ── */
   if (loadingRoom) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#eef0f3]">
         <IconSpinner size={32} className="text-[#1e3252]" />
       </div>
     );
@@ -243,7 +251,7 @@ export function RoomPage() {
 
   if (notFound || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#eef0f3] px-4">
         <div className="text-center">
           <p className="text-lg font-bold text-gray-900">Sala no encontrada</p>
           <p className="text-sm text-gray-500 mt-1">El ID ingresado no corresponde a ninguna sala.</p>
@@ -259,171 +267,234 @@ export function RoomPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex bg-[#eef0f3] overflow-hidden">
 
-      {/* ── Header ── */}
-      <header className="bg-white border-b border-gray-200 flex-shrink-0">
-        <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center gap-3">
-          {/* Logo + back */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-7 h-7 bg-[#1e3252] rounded-lg flex items-center justify-center">
-              <IconGraduationCap size={14} className="text-white" />
+      {/* ── Left Sidebar ── */}
+      <aside className="w-48 flex flex-col py-5 px-3 flex-shrink-0">
+
+        {/* Logo + Room Info */}
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-3 shadow-sm">
+            <IconBookOpen size={26} className="text-[#1e3252]" />
+          </div>
+          <div className="flex items-center gap-1 justify-center w-full px-1">
+            <span className="font-bold text-gray-900 text-sm text-center truncate max-w-[120px]">
+              {room.name}
+            </span>
+            {isHost && (
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowHostMenu(v => !v)}
+                  className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <IconMoreVertical size={14} />
+                </button>
+                {showHostMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowHostMenu(false)} />
+                    <div className="absolute left-0 top-6 z-20 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 overflow-hidden">
+                      <button
+                        onClick={() => { setShowHostMenu(false); setShowEdit(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <IconPencil size={13} /> Editar nombre
+                      </button>
+                      <button
+                        onClick={() => { setShowHostMenu(false); setShowDelete(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <IconTrash size={13} /> Eliminar sala
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-green-400' : 'bg-gray-300'}`} />
+            <span className="text-xs text-gray-500">Active Session</span>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex flex-col gap-1">
+          {/* Participants — disabled */}
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-400 cursor-not-allowed select-none">
+            <div className="flex items-center gap-2.5">
+              <IconUsers size={15} />
+              <span>Participants</span>
             </div>
+            <span className="bg-gray-200 text-gray-400 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {onlineCount}
+            </span>
           </div>
 
+          {/* Chat — active */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm bg-teal-500 text-white font-semibold select-none">
+            <IconMessageSquare size={15} />
+            Chat
+          </div>
+
+          {/* Resources — disabled */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-gray-400 cursor-not-allowed select-none">
+            <IconFolder size={15} />
+            <span>Resources</span>
+          </div>
+
+          {/* Notes — disabled */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-gray-400 cursor-not-allowed select-none">
+            <IconNote size={15} />
+            <span>Notes</span>
+          </div>
+        </nav>
+
+        <div className="flex-1" />
+
+        {/* Invite Member */}
+        <button
+          onClick={handleInvite}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#1e3252] hover:bg-[#16263f] text-white text-sm font-semibold rounded-xl transition-colors mb-3"
+        >
+          {inviteCopied
+            ? <><IconCheckCircle size={15} /> ¡Copiado!</>
+            : <><IconUserPlus size={15} /> Invite Member</>
+          }
+        </button>
+
+        {/* Help + Leave */}
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-400 cursor-not-allowed select-none rounded-xl">
+            <IconHelp size={15} />
+            Help
+          </div>
           <button
             onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 rounded-xl hover:bg-red-50 transition-colors font-medium"
           >
-            <IconArrowLeft size={15} /> Dashboard
+            <IconLogOut size={15} />
+            Leave
           </button>
+        </div>
+      </aside>
 
-          <span className="text-gray-300">/</span>
+      {/* ── Main Chat Area ── */}
+      <main className="flex-1 flex flex-col bg-white rounded-l-3xl overflow-hidden my-3 mr-3 shadow-sm">
 
-          {/* Room name */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <IconHash size={15} className="text-gray-400 flex-shrink-0" />
-            <span className="font-semibold text-gray-900 text-sm truncate">{room.name}</span>
-            {isHost && (
-              <span className="flex-shrink-0 text-xs font-medium text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-md">
-                Anfitrión
-              </span>
-            )}
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Online count */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500">
-              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-300'}`} />
-              <IconUsers size={13} />
-              <span>{onlineCount}</span>
-            </div>
-
-            {/* Host controls */}
-            {isHost && (
-              <>
-                <button
-                  onClick={() => setShowEdit(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <IconPencil size={13} /> Editar
-                </button>
-                <button
-                  onClick={() => setShowDelete(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                >
-                  <IconTrash size={13} /> Eliminar
-                </button>
-              </>
-            )}
+        {/* Chat header */}
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+          <IconMessageSquare size={16} className="text-teal-500" />
+          <span className="text-sm font-semibold text-gray-800">Chat</span>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-300'}`} />
+            <IconUsers size={12} />
+            <span>{onlineCount} en línea</span>
           </div>
         </div>
-      </header>
 
-      {/* ── Share banner (host, recién creada) ── */}
-      {isHost && showShareBanner && (
-        <div className="bg-teal-50 border-b border-teal-100 px-4 py-3 flex-shrink-0">
-          <div className="max-w-screen-xl mx-auto flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-teal-800">
-                ¡Sala creada! Comparte este código con tus compañeros para que puedan unirse:
-              </p>
-              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                <code className="bg-white border border-teal-200 text-teal-700 font-mono text-sm px-3 py-1 rounded-lg">
-                  {id}
-                </code>
-                <button
-                  onClick={handleCopyId}
-                  className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
-                >
-                  {copied
-                    ? <><IconCheckCircle size={13} /> ¡Copiado!</>
-                    : <><IconCopy size={13} /> Copiar código</>
-                  }
-                </button>
+        {/* Share banner */}
+        {isHost && showShareBanner && (
+          <div className="bg-teal-50 border-b border-teal-100 px-5 py-3 flex-shrink-0">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-teal-800">
+                  ¡Sala creada! Comparte este código con tus compañeros para que puedan unirse:
+                </p>
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                  <code className="bg-white border border-teal-200 text-teal-700 font-mono text-sm px-3 py-1 rounded-lg">
+                    {id}
+                  </code>
+                  <button
+                    onClick={handleCopyId}
+                    className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                  >
+                    {copied
+                      ? <><IconCheckCircle size={13} /> ¡Copiado!</>
+                      : <><IconCopy size={13} /> Copiar código</>
+                    }
+                  </button>
+                </div>
               </div>
+              <button
+                onClick={() => setShowShareBanner(false)}
+                className="text-teal-400 hover:text-teal-600 transition-colors flex-shrink-0 mt-0.5"
+              >
+                <IconX size={16} />
+              </button>
             </div>
-            <button
-              onClick={() => setShowShareBanner(false)}
-              className="text-teal-400 hover:text-teal-600 transition-colors flex-shrink-0 mt-0.5"
-            >
-              <IconX size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-        {messages.length === 0 && connected && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
-              <IconHash size={22} className="text-gray-400" />
-            </div>
-            <p className="font-semibold text-gray-700">Inicio del chat</p>
-            <p className="text-sm text-gray-400 mt-1">Sé el primero en escribir.</p>
           </div>
         )}
 
-        {messages.map((msg, idx) => {
-          const isOwn = msg.senderUid === user?.uid;
-          const prevMsg = messages[idx - 1];
-          const sameAuthor = prevMsg?.senderUid === msg.senderUid;
-          const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
-
-          return (
-            <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
-              {/* Avatar */}
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
-                {initial}
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+          {messages.length === 0 && connected && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                <IconMessageSquare size={22} className="text-gray-400" />
               </div>
-
-              <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                {!sameAuthor && (
-                  <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-xs font-semibold text-gray-700">{msg.senderUsername}</span>
-                    <span className="text-[10px] text-gray-400">{fmtTime(msg.createdAt)}</span>
-                  </div>
-                )}
-                <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                  isOwn
-                    ? 'bg-[#1e3252] text-white rounded-tr-sm'
-                    : 'bg-white border border-gray-100 text-gray-900 rounded-tl-sm'
-                }`}>
-                  {msg.text}
-                </div>
-                {sameAuthor && (
-                  <span className="text-[10px] text-gray-400 mt-0.5 mx-1">{fmtTime(msg.createdAt)}</span>
-                )}
-              </div>
+              <p className="font-semibold text-gray-700">Inicio del chat</p>
+              <p className="text-sm text-gray-400 mt-1">Sé el primero en escribir.</p>
             </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
+          )}
 
-      {/* ── Input ── */}
-      <div className="bg-white border-t border-gray-200 px-4 py-3 flex-shrink-0">
-        <div className="max-w-screen-xl mx-auto flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={`Mensaje en #${room.name}`}
-            maxLength={2000}
-            className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-[#1e3252]/20 transition-all"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || sending}
-            className="w-10 h-10 flex items-center justify-center bg-[#1e3252] hover:bg-[#16263f] text-white rounded-xl transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            {sending ? <IconSpinner size={16} /> : <IconSend size={16} />}
-          </button>
+          {messages.map((msg, idx) => {
+            const isOwn = msg.senderUid === user?.uid;
+            const prevMsg = messages[idx - 1];
+            const sameAuthor = prevMsg?.senderUid === msg.senderUid;
+            const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
+
+            return (
+              <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
+                  {initial}
+                </div>
+                <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                  {!sameAuthor && (
+                    <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
+                      <span className="text-xs font-semibold text-gray-700">{msg.senderUsername}</span>
+                      <span className="text-[10px] text-gray-400">{fmtTime(msg.createdAt)}</span>
+                    </div>
+                  )}
+                  <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+                    isOwn
+                      ? 'bg-[#1e3252] text-white rounded-tr-sm'
+                      : 'bg-gray-100 text-gray-900 rounded-tl-sm'
+                  }`}>
+                    {msg.text}
+                  </div>
+                  {sameAuthor && (
+                    <span className="text-[10px] text-gray-400 mt-0.5 mx-1">{fmtTime(msg.createdAt)}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
         </div>
-      </div>
+
+        {/* Input */}
+        <div className="border-t border-gray-100 px-5 py-3.5 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder={`Mensaje en #${room.name}`}
+              maxLength={2000}
+              className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-[#1e3252]/20 transition-all"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || sending}
+              className="w-10 h-10 flex items-center justify-center bg-[#1e3252] hover:bg-[#16263f] text-white rounded-xl transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              {sending ? <IconSpinner size={16} /> : <IconSend size={16} />}
+            </button>
+          </div>
+        </div>
+      </main>
 
       {/* ── Modals ── */}
       {showEdit && (
