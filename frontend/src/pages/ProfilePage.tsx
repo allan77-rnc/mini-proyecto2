@@ -194,6 +194,7 @@ export function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
   const usernameChanged = username.trim() !== (user?.username ?? '');
   const { status: usernameStatus, error: usernameApiError, isChecking } = useUsername(
@@ -264,11 +265,6 @@ export function ProfilePage() {
     navigate('/login', { replace: true });
   }
 
-  async function handleSignOut() {
-    await signOut();
-    navigate('/', { replace: true });
-  }
-
   const usernameHint = usernameChanged
     ? isChecking
       ? <span className="flex items-center gap-1 text-xs text-gray-400"><IconSpinner size={12} /> Verificando...</span>
@@ -311,17 +307,39 @@ export function ProfilePage() {
             <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
               <IconSettings size={18} />
             </button>
-            {/* Avatar */}
-            <button
-              onClick={handleSignOut}
-              className="w-8 h-8 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden"
-              title={t('dashboard.signOut')}
-            >
-              {user.avatarUrl && !avatarError
-                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
-                : <span className="text-white text-xs font-bold">{initials}</span>
-              }
-            </button>
+            {/* Avatar dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAvatarMenu(v => !v)}
+                className="w-8 h-8 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#1e3252]"
+                title={user.firstName}
+              >
+                {user.avatarUrl && !avatarError
+                  ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
+                  : <span className="text-white text-xs font-bold">{initials}</span>
+                }
+              </button>
+
+              {showAvatarMenu && (
+                <>
+                  {/* backdrop */}
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAvatarMenu(false)} />
+                  {/* menu */}
+                  <div className="absolute right-0 top-10 z-20 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-1 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={async () => { setShowAvatarMenu(false); await signOut(); navigate('/', { replace: true }); }}
+                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                    >
+                      {t('dashboard.signOut')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>

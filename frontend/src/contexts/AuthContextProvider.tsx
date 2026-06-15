@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signInWithGoogle(): Promise<{ needsProfile: boolean }> {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     const { user: fbUser } = await signInWithPopup(auth, provider);
     const idToken = await fbUser.getIdToken();
     const data = await api.post<{ user?: UserProfile; isNewUser?: boolean }>(
