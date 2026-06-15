@@ -103,11 +103,17 @@ export class AuthService {
       return { user: existing, isNewUser: false };
     }
 
+    const email = decoded.email ?? '';
+    // Enforce institutional domain for Google signups as well
+    if (!this.isEmailAllowed(email)) {
+      throw new BadRequestException('Only institutional email addresses are allowed');
+    }
+
     const nameParts = (decoded.name as string | undefined)?.split(' ') ?? [];
     return {
       isNewUser: true,
       googleData: {
-        email: decoded.email ?? '',
+        email,
         firstName: nameParts[0] ?? '',
         lastName: nameParts.slice(1).join(' ') || '',
         avatarUrl: decoded.picture ?? null,
@@ -126,6 +132,11 @@ export class AuthService {
     if (!available) throw new ConflictException('Username is already taken');
 
     const firebaseUser = await this.firebase.auth.getUser(uid);
+    // Double-check the user's email domain before creating the profile
+    const firebaseEmail = firebaseUser.email ?? '';
+    if (!this.isEmailAllowed(firebaseEmail)) {
+      throw new BadRequestException('Only institutional email addresses are allowed');
+    }
     const nameParts = (firebaseUser.displayName ?? '').split(' ');
 
     const now = new Date();
