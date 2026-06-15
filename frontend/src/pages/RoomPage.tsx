@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../lib/api';
@@ -8,6 +8,7 @@ import type { Room, ChatMessage } from '../types/room';
 import {
   IconGraduationCap, IconArrowLeft, IconPencil, IconTrash,
   IconSend, IconSpinner, IconAlertTriangle, IconHash, IconUsers,
+  IconCopy, IconX, IconCheckCircle,
 } from '../components/icons';
 
 const WS_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000')
@@ -126,6 +127,7 @@ function DeleteRoomModal({ room, onClose, onDeleted }: {
 export function RoomPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [room, setRoom] = useState<Room | null>(null);
@@ -140,6 +142,11 @@ export function RoomPage() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+
+  const [showShareBanner, setShowShareBanner] = useState(
+    !!(location.state as { justCreated?: boolean } | null)?.justCreated
+  );
+  const [copied, setCopied] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -215,6 +222,14 @@ export function RoomPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  /* ── Copy room ID ── */
+  async function handleCopyId() {
+    if (!id) return;
+    await navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   }
 
   /* ── Loading / error states ── */
@@ -305,6 +320,39 @@ export function RoomPage() {
           </div>
         </div>
       </header>
+
+      {/* ── Share banner (host, recién creada) ── */}
+      {isHost && showShareBanner && (
+        <div className="bg-teal-50 border-b border-teal-100 px-4 py-3 flex-shrink-0">
+          <div className="max-w-screen-xl mx-auto flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-teal-800">
+                ¡Sala creada! Comparte este código con tus compañeros para que puedan unirse:
+              </p>
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                <code className="bg-white border border-teal-200 text-teal-700 font-mono text-sm px-3 py-1 rounded-lg">
+                  {id}
+                </code>
+                <button
+                  onClick={handleCopyId}
+                  className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                >
+                  {copied
+                    ? <><IconCheckCircle size={13} /> ¡Copiado!</>
+                    : <><IconCopy size={13} /> Copiar código</>
+                  }
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowShareBanner(false)}
+              className="text-teal-400 hover:text-teal-600 transition-colors flex-shrink-0 mt-0.5"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Messages ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">

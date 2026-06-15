@@ -8,7 +8,8 @@ import {
   IconGraduationCap, IconBell, IconSettings, IconMessageSquare,
   IconSearch, IconClock, IconPlus, IconCalendar, IconBookOpen,
   IconPencil, IconTrash, IconLogIn, IconSpinner, IconMoreVertical,
-  IconAlertTriangle,
+  IconAlertTriangle, IconGlobe, IconX, IconKey, IconArrowRight,
+  IconChevronDown, IconLock, IconSliders, IconMonitor,
 } from '../components/icons';
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
@@ -36,14 +37,18 @@ const ACTIVITY = [
 ];
 
 /* ─── Modal overlay wrapper ───────────────────────────────────────── */
-function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function Modal({ onClose, children, maxWidth = 'max-w-md' }: {
+  onClose: () => void;
+  children: React.ReactNode;
+  maxWidth?: string;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+        className={`w-full ${maxWidth} bg-white rounded-2xl shadow-xl overflow-hidden`}
         onClick={e => e.stopPropagation()}
       >
         {children}
@@ -53,23 +58,30 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
 }
 
 /* ─── CreateRoomModal ─────────────────────────────────────────────── */
+const SUBJECTS = [
+  'Matemáticas', 'Física', 'Química', 'Biología',
+  'Historia', 'Literatura', 'Informática', 'Idiomas', 'Arte', 'Economía', 'Otro',
+];
+
 function CreateRoomModal({ onClose, onCreate }: {
   onClose: () => void;
   onCreate: (room: Room) => void;
 }) {
   const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   async function handleCreate() {
     const trimmed = name.trim();
-    if (!trimmed) { setError('El nombre no puede estar vacío.'); return; }
+    if (!trimmed) { setError('El nombre de la sala es requerido.'); return; }
     setLoading(true);
     try {
       const room = await api.post<Room>('/api/rooms', { name: trimmed });
       onCreate(room);
-      navigate(`/room/${room.id}`);
+      navigate(`/room/${room.id}`, { state: { justCreated: true } });
     } catch {
       setError('No se pudo crear la sala. Inténtalo de nuevo.');
       setLoading(false);
@@ -77,37 +89,129 @@ function CreateRoomModal({ onClose, onCreate }: {
   }
 
   return (
-    <Modal onClose={onClose}>
-      <div className="p-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Nueva sala de estudio</h2>
-        <p className="text-sm text-gray-500 mb-4">Elige un nombre para tu sala.</p>
-        <input
-          autoFocus
-          type="text"
-          value={name}
-          onChange={e => { setName(e.target.value); setError(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          placeholder="Ej: Cálculo II — Parciales"
-          maxLength={80}
-          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors"
-        />
-        {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+    <Modal onClose={onClose} maxWidth="max-w-lg">
+      <div className="p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Create New Study Room</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Set up a space for collaborative learning.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ml-4">
+            <IconX size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Room Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Room Name <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <IconMonitor size={15} />
+              </div>
+              <input
+                autoFocus
+                type="text"
+                value={name}
+                onChange={e => { setName(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                placeholder="e.g., Calculus II Midterm Prep"
+                maxLength={80}
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors"
+              />
+            </div>
+            {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+          </div>
+
+          {/* Subject / Topic */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Subject / Topic <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <IconSliders size={15} />
+              </div>
+              <select
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors appearance-none bg-white text-gray-500"
+              >
+                <option value="">Select a primary subject</option>
+                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <IconChevronDown size={15} />
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Description{' '}
+              <span className="text-xs font-normal text-gray-400">(Optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What are the goals for this session?"
+              rows={3}
+              maxLength={500}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors resize-none"
+            />
+          </div>
+
+          {/* Privacy Setting */}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-2">Privacy Setting</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5 p-3 border-2 border-teal-600 rounded-xl bg-white cursor-default select-none">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <IconGlobe size={15} className="text-teal-600" />
+                    <span className="text-sm font-semibold text-gray-900">Public</span>
+                  </div>
+                  <div className="w-4 h-4 rounded-full border-2 border-teal-600 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-teal-600" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">Visible in search. Anyone can join this room.</p>
+              </div>
+              <div className="flex flex-col gap-1.5 p-3 border-2 border-gray-200 rounded-xl bg-white cursor-not-allowed opacity-50 select-none">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <IconLock size={15} className="text-gray-400" />
+                    <span className="text-sm font-semibold text-gray-500">Private</span>
+                  </div>
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">Invite only. Requires link or direct approval.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
       <div className="flex gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
         <button
           onClick={onClose}
           disabled={loading}
           className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition-colors disabled:opacity-50"
         >
-          Cancelar
+          Cancel
         </button>
         <button
           onClick={handleCreate}
           disabled={loading}
           className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#1e3252] hover:bg-[#16263f] text-white font-semibold text-sm transition-colors disabled:opacity-50"
         >
-          {loading ? <IconSpinner size={15} /> : <IconPlus size={15} />}
-          Crear sala
+          {loading
+            ? <><IconSpinner size={15} /> Creando sala...</>
+            : <><IconPlus size={15} /> + Create Room</>
+          }
         </button>
       </div>
     </Modal>
@@ -123,34 +227,58 @@ function JoinRoomModal({ onClose }: { onClose: () => void }) {
 
   async function handleJoin() {
     const trimmed = roomId.trim();
-    if (!trimmed) { setError('Ingresa un ID de sala.'); return; }
+    if (!trimmed) { setError('Ingresa un código de sala.'); return; }
     setLoading(true);
     try {
       await api.get<Room>(`/api/rooms/${trimmed}`);
       navigate(`/room/${trimmed}`);
     } catch (err: unknown) {
       const e = err as { status?: number };
-      setError(e.status === 404 ? 'Sala no encontrada. Verifica el ID.' : 'Error al buscar la sala.');
+      setError(e.status === 404 ? 'Sala no encontrada. Verifica el código.' : 'Error al buscar la sala.');
       setLoading(false);
     }
   }
 
   return (
     <Modal onClose={onClose}>
-      <div className="p-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Unirse a una sala</h2>
-        <p className="text-sm text-gray-500 mb-4">Pega el ID de sala que te compartieron.</p>
-        <input
-          autoFocus
-          type="text"
-          value={roomId}
-          onChange={e => { setRoomId(e.target.value); setError(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleJoin()}
-          placeholder="ID de la sala"
-          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors"
-        />
+      <div className="p-6 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <IconX size={18} />
+        </button>
+
+        <div className="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center mb-4">
+          <IconLogIn size={22} className="text-teal-600" />
+        </div>
+
+        <h2 className="text-xl font-bold text-gray-900">Unirse a una Sala de Estudio</h2>
+        <p className="text-sm text-gray-500 mt-1 mb-5">
+          Ingresa el código de la sala para unirte a la sesión de colaboración.
+        </p>
+
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+          Código de sala
+        </label>
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <IconKey size={15} />
+          </div>
+          <input
+            autoFocus
+            type="text"
+            value={roomId}
+            onChange={e => { setRoomId(e.target.value); setError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleJoin()}
+            placeholder="EJ: SALA-4X9K"
+            className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-[#1e3252] focus:ring-1 focus:ring-[#1e3252] transition-colors"
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-gray-400">Pídele el código al anfitrión de la sala.</p>
         {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
       </div>
+
       <div className="flex gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
         <button
           onClick={onClose}
@@ -164,8 +292,9 @@ function JoinRoomModal({ onClose }: { onClose: () => void }) {
           disabled={loading || !roomId.trim()}
           className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#1e3252] hover:bg-[#16263f] text-white font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? <IconSpinner size={15} /> : <IconLogIn size={15} />}
+          {loading && <IconSpinner size={15} />}
           Unirse
+          {!loading && <IconArrowRight size={14} />}
         </button>
       </div>
     </Modal>

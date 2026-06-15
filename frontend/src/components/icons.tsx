@@ -39,6 +39,10 @@ export {
   MoreVertical      as IconMoreVertical,
   ArrowLeft         as IconArrowLeft,
   Hash              as IconHash,
+  Globe             as IconGlobe,
+  X                 as IconX,
+  Copy              as IconCopy,
+  Key               as IconKey,
 } from 'lucide-react';
 
 /** Spinner animado — envuelve Loader2 con animate-spin */
