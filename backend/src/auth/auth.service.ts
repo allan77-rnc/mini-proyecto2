@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import type { UserRecord } from 'firebase-admin/auth';
 import type { UserProfile } from '../common/types/index';
@@ -44,6 +45,11 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
+    // Enforce institutional email domains
+    if (!this.isEmailAllowed(dto.email)) {
+      throw new BadRequestException('Only institutional email addresses are allowed');
+    }
+
     const available = await this.usersService.isUsernameAvailable(dto.username);
     if (!available) throw new ConflictException('Username is already taken');
 
@@ -76,6 +82,15 @@ export class AuthService {
       firebaseUser.uid,
     );
     return { customToken, user: profile };
+  }
+
+  private isEmailAllowed(email: string): boolean {
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    const domain = parts[1].toLowerCase();
+
+    // Require institutional emails to end with `.edu` (e.g. universidad.edu or alumno.universidad.edu)
+    return domain.endsWith('.edu');
   }
 
   async handleGoogleAuth(
