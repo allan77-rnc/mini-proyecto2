@@ -27,6 +27,11 @@ export {
   SlidersHorizontal as IconSliders,
   ShieldCheck       as IconShieldCheck,
   Link2             as IconLink,
+  Search            as IconSearch,
+  Clock             as IconClock,
+  Plus              as IconPlus,
+  Calendar          as IconCalendar,
+  BookOpen          as IconBookOpen,
 } from 'lucide-react';
 
 /** Spinner animado — envuelve Loader2 con animate-spin */
