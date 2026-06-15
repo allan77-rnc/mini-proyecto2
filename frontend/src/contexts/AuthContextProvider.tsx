@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { api } from '../lib/api';
-import type { UserProfile, AuthState, RegisterPayload, CompleteProfilePayload } from '../types/auth';
+import type { UserProfile, AuthState, RegisterPayload, CompleteProfilePayload, UpdateProfilePayload } from '../types/auth';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue } from './AuthContext';
 
@@ -73,11 +73,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.post('/api/auth/reset-password', { email });
   }
 
+  async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
+    const profile = await api.patch<UserProfile>('/api/users/me', payload);
+    setState(prev => ({ ...prev, user: profile }));
+    return profile;
+  }
+
+  async function deleteAccount() {
+    await api.del('/api/users/me');
+    await fbSignOut(auth);
+  }
+
   async function signOut() {
     await fbSignOut(auth);
   }
 
-  const value: AuthContextValue = { ...state, signIn, signUp, signInWithGoogle, completeProfile, sendResetEmail, signOut };
+  const value: AuthContextValue = { ...state, signIn, signUp, signInWithGoogle, completeProfile, sendResetEmail, updateProfile, deleteAccount, signOut };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

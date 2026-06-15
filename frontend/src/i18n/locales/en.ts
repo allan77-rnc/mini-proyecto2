@@ -117,6 +117,45 @@ export const en = {
     emailField: 'Email',
     providerField: 'Provider',
     signOut: 'Sign out',
+    editProfile: 'Edit profile',
+  },
+
+  profile: {
+    title: 'Profile Settings',
+    subtitle: 'Manage your academic identity and account information.',
+    backToDashboard: '← Back to dashboard',
+    personalInfo: 'Personal Information',
+    firstNameLabel: 'First name',
+    lastNameLabel: 'Last name',
+    usernameLabel: 'Username',
+    emailLabel: 'Email',
+    providerNote: 'You sign in with Google. Email cannot be changed here.',
+    saveChanges: 'Save Changes',
+    saving: 'Saving...',
+    noChanges: 'No changes to save.',
+    savedTitle: 'Saved!',
+    savedMsg: 'Your profile has been updated.',
+    saveErrorTitle: 'Could not save',
+    saveError: 'Something went wrong updating your profile. Please try again.',
+    // Danger zone
+    dangerZone: 'Danger Zone',
+    dangerDesc:
+      'Permanently delete your account and all associated study data. This action cannot be undone.',
+    deleteAccount: 'Delete Account',
+    // Delete modal
+    deleteTitle: 'Delete account',
+    deleteWarning:
+      'This action is permanent. All your data will be erased and your account cannot be recovered.',
+    deleteConfirmLabel: 'To confirm, type {{word}} below.',
+    deleteConfirmWord: 'DELETE',
+    deleteConfirmPlaceholder: 'DELETE',
+    confirmDelete: 'Yes, delete my account',
+    deleting: 'Deleting...',
+    cancel: 'Cancel',
+    deletedTitle: 'Account deleted',
+    deletedMsg: 'Your account and data have been erased.',
+    deleteErrorTitle: 'Could not delete',
+    deleteError: 'Something went wrong deleting your account. Please try again.',
   },
 
   validation: {

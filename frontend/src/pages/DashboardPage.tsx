@@ -52,12 +52,20 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleSignOut}
-          className="w-full py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-colors text-sm"
-        >
-          {t('dashboard.signOut')}
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={() => navigate('/profile')}
+            className="w-full py-3 rounded-xl bg-[#1e3252] text-white font-semibold hover:bg-[#16263f] transition-colors text-sm"
+          >
+            {t('dashboard.editProfile')}
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="w-full py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-colors text-sm"
+          >
+            {t('dashboard.signOut')}
+          </button>
+        </div>
       </div>
     </div>
   );

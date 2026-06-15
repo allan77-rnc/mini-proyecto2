@@ -23,7 +23,7 @@ function AppRoutes() {
 
       {/* Protected — requires full auth + Firestore profile */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProfilePage />} />
       <Route path="/room/:id" element={<ProtectedRoute><RoomPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
