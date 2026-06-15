@@ -89,8 +89,8 @@ export class AuthService {
     if (parts.length !== 2) return false;
     const domain = parts[1].toLowerCase();
 
-    // Require institutional emails to end with `.edu` (e.g. universidad.edu or alumno.universidad.edu)
-    return domain.endsWith('.edu');
+    // Allow institutional emails that end with `.edu` or `.edu.*` (e.g. universidad.edu, universidad.edu.ar)
+    return /\.edu($|\.)/i.test(domain);
   }
 
   async handleGoogleAuth(
