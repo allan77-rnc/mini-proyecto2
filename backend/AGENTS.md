@@ -124,6 +124,9 @@ Get service account credentials: Firebase Console → Project Settings → Servi
 | DELETE | `/:id` | Bearer | Delete a room (host only) |
 
 ### WebSocket Gateway (`/rooms` namespace)
+
+#### Events reference
+
 | Event (client→server) | Payload | Description |
 |---|---|---|
 | `join-room` | `{ roomId, idToken }` | Join a room's Socket.io channel |
@@ -136,6 +139,100 @@ Get service account credentials: Firebase Console → Project Settings → Servi
 | `room:user-joined` | `{ username }` | Notifies others when a user joins |
 | `room:user-left` | `{ username }` | Notifies others when a user leaves |
 | `room:message` | MessageResponse | Broadcasts a persisted message to all room members |
+
+#### Frontend connection guide
+
+Install the client:
+```bash
+npm install socket.io-client
+# or
+bun add socket.io-client
+```
+
+**1 — Connect to the gateway**
+
+The gateway lives at `<BACKEND_URL>/rooms` (Socket.io namespace, not a URL path).
+
+```ts
+import { io, Socket } from 'socket.io-client';
+import { getAuth } from 'firebase/auth';
+
+const BACKEND_URL = 'http://localhost:3000'; // or your deploy URL
+
+const socket: Socket = io(`${BACKEND_URL}/rooms`, {
+  transports: ['websocket'],  // skip long-polling
+  autoConnect: false,         // connect manually after auth
+});
+```
+
+**2 — Get the Firebase ID token**
+
+Pass the token in every event payload (not in the connection handshake).
+
+```ts
+async function getIdToken(): Promise<string> {
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('Not authenticated');
+  return user.getIdToken();
+}
+```
+
+**3 — Connect and join a room**
+
+```ts
+socket.connect();
+
+socket.on('connect', async () => {
+  const idToken = await getIdToken();
+  socket.emit('join-room', { roomId: '<uuid-of-room>', idToken });
+});
+
+// Server confirms you joined
+socket.on('room:joined', ({ roomId }) => {
+  console.log('Joined room', roomId);
+});
+
+// Another user joined
+socket.on('room:user-joined', ({ username }) => {
+  console.log(username, 'joined the room');
+});
+
+// A user left
+socket.on('room:user-left', ({ username }) => {
+  console.log(username, 'left the room');
+});
+```
+
+**4 — Send and receive messages**
+
+```ts
+// Receive messages (broadcast to everyone in the room)
+socket.on('room:message', (message) => {
+  // message: { id, roomId, senderUid, senderUsername, text, createdAt }
+  console.log(`[${message.senderUsername}]: ${message.text}`);
+});
+
+// Send a message
+async function sendMessage(roomId: string, text: string) {
+  const idToken = await getIdToken();
+  socket.emit('send-message', { roomId, text, idToken });
+}
+```
+
+**5 — Leave and disconnect**
+
+```ts
+// Leave the current room (server notifies others)
+socket.emit('leave-room');
+
+// Full disconnect
+socket.disconnect();
+```
+
+**Important notes**
+- The idToken expires after 1 hour. Refresh it before emitting if the user has been idle: `await user.getIdToken(/* forceRefresh */ true)`.
+- A socket can only be in one room at a time. Joining a second room without leaving the first will leave the user present in both until they disconnect.
+- The gateway persists every `send-message` to Firestore before broadcasting, so messages survive reconnections.
 
 ## SOLID Notes
 - **S**: Each service has one responsibility. `FirebaseService` wraps the SDK; repositories handle Firestore CRUD; services handle business logic; controllers/gateway handle transport.
