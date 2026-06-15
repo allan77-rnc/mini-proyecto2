@@ -117,6 +117,45 @@ export const es = {
     emailField: 'Correo',
     providerField: 'Proveedor',
     signOut: 'Cerrar sesión',
+    editProfile: 'Editar perfil',
+  },
+
+  profile: {
+    title: 'Configuración de perfil',
+    subtitle: 'Gestiona tu identidad académica e información de cuenta.',
+    backToDashboard: '← Volver al panel',
+    personalInfo: 'Información Personal',
+    firstNameLabel: 'Nombre',
+    lastNameLabel: 'Apellidos',
+    usernameLabel: 'Nombre de usuario',
+    emailLabel: 'Correo electrónico',
+    providerNote: 'Inicias sesión con Google. El correo no se puede cambiar aquí.',
+    saveChanges: 'Guardar cambios',
+    saving: 'Guardando...',
+    noChanges: 'No hay cambios para guardar.',
+    savedTitle: '¡Guardado!',
+    savedMsg: 'Tu perfil ha sido actualizado.',
+    saveErrorTitle: 'No se pudo guardar',
+    saveError: 'Ocurrió un error al actualizar tu perfil. Inténtalo de nuevo.',
+    // Danger zone
+    dangerZone: 'Zona de Peligro',
+    dangerDesc:
+      'Elimina permanentemente tu cuenta y todos tus datos de estudio. Esta acción no se puede deshacer.',
+    deleteAccount: 'Eliminar cuenta',
+    // Delete modal
+    deleteTitle: 'Eliminar cuenta',
+    deleteWarning:
+      'Esta acción es permanente. Se borrarán todos tus datos y no podrás recuperar tu cuenta.',
+    deleteConfirmLabel: 'Para confirmar, escribe {{word}} a continuación.',
+    deleteConfirmWord: 'ELIMINAR',
+    deleteConfirmPlaceholder: 'ELIMINAR',
+    confirmDelete: 'Sí, eliminar mi cuenta',
+    deleting: 'Eliminando...',
+    cancel: 'Cancelar',
+    deletedTitle: 'Cuenta eliminada',
+    deletedMsg: 'Tu cuenta y tus datos han sido borrados.',
+    deleteErrorTitle: 'No se pudo eliminar',
+    deleteError: 'Ocurrió un error al eliminar tu cuenta. Inténtalo de nuevo.',
   },
 
   validation: {

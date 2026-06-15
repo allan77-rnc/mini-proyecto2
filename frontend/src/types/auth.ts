@@ -41,3 +41,12 @@ export interface RegisterPayload {
 export interface CompleteProfilePayload {
   username: string;
 }
+
+/** Editable profile fields sent to `PATCH /users/me`. Only changed fields are included. */
+export interface UpdateProfilePayload {
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  email?: string;
+  avatarUrl?: string;
+}
