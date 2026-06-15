@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomBytes } from 'crypto';
+
+function shortId(): string {
+  return randomBytes(5).toString('hex'); // 10 lowercase hex chars, e.g. "a3f2d891c7"
+}
 import type { UserProfile } from '../common/types/index';
 import type { CreateRoomDto } from './dto/create-room.dto';
 import type { UpdateRoomDto } from './dto/update-room.dto';
@@ -22,7 +26,7 @@ export class RoomsService {
 
   async createRoom(host: UserProfile, dto: CreateRoomDto): Promise<Room> {
     return this.roomsRepo.create({
-      id: randomUUID(),
+      id: shortId(),
       name: dto.name,
       description: dto.description,
       hostUid: host.uid,
