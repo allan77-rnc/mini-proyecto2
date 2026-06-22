@@ -50,8 +50,8 @@ export function useWebRTC(
 
   useEffect(() => {
     if (!socket || !localStream) {
-      setParticipants([]);
-      return;
+      const raf = requestAnimationFrame(() => setParticipants([]));
+      return () => cancelAnimationFrame(raf);
     }
 
     const stream = localStream;
@@ -91,7 +91,7 @@ export function useWebRTC(
           if (old) remoteStream.removeTrack(old);
           remoteStream.addTrack(t);
         });
-        upsertParticipant({ userId: socketId, stream: remoteStream });
+        upsertParticipant({ userId: socketId, username: peerUsername, stream: remoteStream });
       };
 
       pc.onicecandidate = async (e) => {
