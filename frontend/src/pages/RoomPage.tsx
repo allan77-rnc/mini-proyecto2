@@ -9,8 +9,12 @@ import {
   IconBookOpen, IconUsers, IconMessageSquare, IconUserPlus,
   IconPencil, IconTrash, IconSend, IconSpinner, IconAlertTriangle,
   IconMoreVertical, IconCopy, IconX, IconCheckCircle,
-  IconFolder, IconNote, IconHelp, IconLogOut,
+  IconFolder, IconNote, IconHelp, IconLogOut, IconVideo,
 } from '../components/icons';
+import {
+  useLocalMedia, useWebRTC,
+  VideoGrid, VideoTile, PermissionBanner, MediaControls,
+} from '../features/video';
 
 const WS_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000')
   .replace(/\/api\/?$/, '')
@@ -140,6 +144,8 @@ export function RoomPage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<'chat' | 'video'>('chat');
+
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showHostMenu, setShowHostMenu] = useState(false);
@@ -154,6 +160,32 @@ export function RoomPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isHost = !!room && !!user && room.hostUid === user.uid;
+
+  /* ── Local media (camera + mic) ── */
+  const localMedia = useLocalMedia();
+
+  /* ── WebRTC P2P ── */
+  const { participants, broadcastMediaState } = useWebRTC(
+    id ?? '',
+    user?.uid ?? '',
+    user?.username ?? user?.firstName ?? 'Usuario',
+    activeTab === 'video' ? localMedia.stream : null,
+  );
+
+  /* ── Propagate local mute/cam state to peers ── */
+  const prevAudioRef = useRef(localMedia.audioEnabled);
+  const prevVideoRef = useRef(localMedia.videoEnabled);
+  useEffect(() => {
+    if (activeTab !== 'video') return;
+    if (
+      prevAudioRef.current !== localMedia.audioEnabled ||
+      prevVideoRef.current !== localMedia.videoEnabled
+    ) {
+      prevAudioRef.current = localMedia.audioEnabled;
+      prevVideoRef.current = localMedia.videoEnabled;
+      broadcastMediaState(localMedia.audioEnabled, localMedia.videoEnabled);
+    }
+  }, [activeTab, localMedia.audioEnabled, localMedia.videoEnabled, broadcastMediaState]);
 
   /* ── Scroll to bottom on new messages ── */
   useEffect(() => {
@@ -330,11 +362,31 @@ export function RoomPage() {
             </span>
           </div>
 
-          {/* Chat — active */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm bg-teal-500 text-white font-semibold select-none">
+          {/* Video — active tab */}
+          <button
+            onClick={() => setActiveTab('video')}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors w-full text-left ${
+              activeTab === 'video'
+                ? 'bg-teal-500 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <IconVideo size={15} />
+            Video
+          </button>
+
+          {/* Chat — active tab */}
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors w-full text-left ${
+              activeTab === 'chat'
+                ? 'bg-teal-500 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
             <IconMessageSquare size={15} />
             Chat
-          </div>
+          </button>
 
           {/* Resources — disabled */}
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-gray-400 cursor-not-allowed select-none">
@@ -378,122 +430,194 @@ export function RoomPage() {
         </div>
       </aside>
 
-      {/* ── Main Chat Area ── */}
+      {/* ── Main Area ── */}
       <main className="flex-1 flex flex-col bg-white rounded-l-3xl overflow-hidden my-3 mr-3 shadow-sm">
 
-        {/* Chat header */}
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
-          <IconMessageSquare size={16} className="text-teal-500" />
-          <span className="text-sm font-semibold text-gray-800">Chat</span>
-          <div className="flex-1" />
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-300'}`} />
-            <IconUsers size={12} />
-            <span>{onlineCount} en línea</span>
-          </div>
-        </div>
+        {/* ─ Video Tab ─ */}
+        {activeTab === 'video' && (
+          <>
+            {/* Header */}
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+              <IconVideo size={16} className="text-teal-500" />
+              <span className="text-sm font-semibold text-gray-800">Video</span>
+              <div className="flex-1" />
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <IconUsers size={12} />
+                <span>{1 + participants.length} en sala</span>
+              </div>
+            </div>
 
-        {/* Share banner */}
-        {isHost && showShareBanner && (
-          <div className="bg-teal-50 border-b border-teal-100 px-5 py-3 flex-shrink-0">
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-teal-800">
-                  ¡Sala creada! Comparte este código con tus compañeros para que puedan unirse:
-                </p>
-                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                  <code className="bg-white border border-teal-200 text-teal-700 font-mono text-sm px-3 py-1 rounded-lg">
-                    {id}
-                  </code>
+            {/* Permission error */}
+            {localMedia.error ? (
+              <PermissionBanner error={localMedia.error} onRetry={localMedia.retry} />
+            ) : localMedia.loading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <IconSpinner size={28} className="text-gray-400" />
+              </div>
+            ) : (
+              /* Video grid */
+              <div className="flex-1 min-h-0 bg-gray-900">
+                <VideoGrid
+                  tiles={[
+                    {
+                      id: user?.uid ?? 'local',
+                      node: (
+                        <VideoTile
+                          stream={localMedia.stream}
+                          username={user?.username ?? user?.firstName ?? 'Tú'}
+                          isLocal
+                          audioEnabled={localMedia.audioEnabled}
+                          videoEnabled={localMedia.videoEnabled}
+                        />
+                      ),
+                    },
+                    ...participants.map(p => ({
+                      id: p.userId,
+                      node: (
+                        <VideoTile
+                          stream={p.stream}
+                          username={p.username}
+                          audioEnabled={p.audioEnabled}
+                          videoEnabled={p.videoEnabled}
+                        />
+                      ),
+                    })),
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* Media controls */}
+            {!localMedia.error && (
+              <MediaControls
+                audioEnabled={localMedia.audioEnabled}
+                videoEnabled={localMedia.videoEnabled}
+                onToggleAudio={localMedia.toggleAudio}
+                onToggleVideo={localMedia.toggleVideo}
+                onLeave={() => navigate('/dashboard')}
+              />
+            )}
+          </>
+        )}
+
+        {/* ─ Chat Tab ─ */}
+        {activeTab === 'chat' && (
+          <>
+            {/* Chat header */}
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+              <IconMessageSquare size={16} className="text-teal-500" />
+              <span className="text-sm font-semibold text-gray-800">Chat</span>
+              <div className="flex-1" />
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-300'}`} />
+                <IconUsers size={12} />
+                <span>{onlineCount} en línea</span>
+              </div>
+            </div>
+
+            {/* Share banner */}
+            {isHost && showShareBanner && (
+              <div className="bg-teal-50 border-b border-teal-100 px-5 py-3 flex-shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-teal-800">
+                      ¡Sala creada! Comparte este código con tus compañeros para que puedan unirse:
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <code className="bg-white border border-teal-200 text-teal-700 font-mono text-sm px-3 py-1 rounded-lg">
+                        {id}
+                      </code>
+                      <button
+                        onClick={handleCopyId}
+                        className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                      >
+                        {copied
+                          ? <><IconCheckCircle size={13} /> ¡Copiado!</>
+                          : <><IconCopy size={13} /> Copiar código</>
+                        }
+                      </button>
+                    </div>
+                  </div>
                   <button
-                    onClick={handleCopyId}
-                    className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                    onClick={() => setShowShareBanner(false)}
+                    className="text-teal-400 hover:text-teal-600 transition-colors flex-shrink-0 mt-0.5"
                   >
-                    {copied
-                      ? <><IconCheckCircle size={13} /> ¡Copiado!</>
-                      : <><IconCopy size={13} /> Copiar código</>
-                    }
+                    <IconX size={16} />
                   </button>
                 </div>
               </div>
-              <button
-                onClick={() => setShowShareBanner(false)}
-                className="text-teal-400 hover:text-teal-600 transition-colors flex-shrink-0 mt-0.5"
-              >
-                <IconX size={16} />
-              </button>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
-          {messages.length === 0 && connected && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
-                <IconMessageSquare size={22} className="text-gray-400" />
-              </div>
-              <p className="font-semibold text-gray-700">Inicio del chat</p>
-              <p className="text-sm text-gray-400 mt-1">Sé el primero en escribir.</p>
-            </div>
-          )}
-
-          {messages.map((msg, idx) => {
-            const isOwn = msg.senderUid === user?.uid;
-            const prevMsg = messages[idx - 1];
-            const sameAuthor = prevMsg?.senderUid === msg.senderUid;
-            const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
-
-            return (
-              <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
-                  {initial}
-                </div>
-                <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                  {!sameAuthor && (
-                    <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                      <span className="text-xs font-semibold text-gray-700">{msg.senderUsername}</span>
-                      <span className="text-[10px] text-gray-400">{fmtTime(msg.createdAt)}</span>
-                    </div>
-                  )}
-                  <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                    isOwn
-                      ? 'bg-[#1e3252] text-white rounded-tr-sm'
-                      : 'bg-gray-100 text-gray-900 rounded-tl-sm'
-                  }`}>
-                    {msg.text}
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+              {messages.length === 0 && connected && (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                    <IconMessageSquare size={22} className="text-gray-400" />
                   </div>
-                  {sameAuthor && (
-                    <span className="text-[10px] text-gray-400 mt-0.5 mx-1">{fmtTime(msg.createdAt)}</span>
-                  )}
+                  <p className="font-semibold text-gray-700">Inicio del chat</p>
+                  <p className="text-sm text-gray-400 mt-1">Sé el primero en escribir.</p>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={bottomRef} />
-        </div>
+              )}
 
-        {/* Input */}
-        <div className="border-t border-gray-100 px-5 py-3.5 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder={`Mensaje en #${room.name}`}
-              maxLength={2000}
-              className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-[#1e3252]/20 transition-all"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || sending}
-              className="w-10 h-10 flex items-center justify-center bg-[#1e3252] hover:bg-[#16263f] text-white rounded-xl transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              {sending ? <IconSpinner size={16} /> : <IconSend size={16} />}
-            </button>
-          </div>
-        </div>
+              {messages.map((msg, idx) => {
+                const isOwn = msg.senderUid === user?.uid;
+                const prevMsg = messages[idx - 1];
+                const sameAuthor = prevMsg?.senderUid === msg.senderUid;
+                const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
+
+                return (
+                  <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
+                      {initial}
+                    </div>
+                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                      {!sameAuthor && (
+                        <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
+                          <span className="text-xs font-semibold text-gray-700">{msg.senderUsername}</span>
+                          <span className="text-[10px] text-gray-400">{fmtTime(msg.createdAt)}</span>
+                        </div>
+                      )}
+                      <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+                        isOwn
+                          ? 'bg-[#1e3252] text-white rounded-tr-sm'
+                          : 'bg-gray-100 text-gray-900 rounded-tl-sm'
+                      }`}>
+                        {msg.text}
+                      </div>
+                      {sameAuthor && (
+                        <span className="text-[10px] text-gray-400 mt-0.5 mx-1">{fmtTime(msg.createdAt)}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Input */}
+            <div className="border-t border-gray-100 px-5 py-3.5 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  placeholder={`Mensaje en #${room.name}`}
+                  maxLength={2000}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-[#1e3252]/20 transition-all"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || sending}
+                  className="w-10 h-10 flex items-center justify-center bg-[#1e3252] hover:bg-[#16263f] text-white rounded-xl transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {sending ? <IconSpinner size={16} /> : <IconSend size={16} />}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </main>
 
       {/* ── Modals ── */}

@@ -47,6 +47,14 @@ export {
   StickyNote        as IconNote,
   HelpCircle        as IconHelp,
   LogOut            as IconLogOut,
+  Mic               as IconMic,
+  MicOff            as IconMicOff,
+  Video             as IconVideo,
+  VideoOff          as IconVideoOff,
+  PhoneOff          as IconPhoneOff,
+  ShieldAlert       as IconShieldAlert,
+  Maximize2         as IconMaximize,
+  Wifi              as IconWifi,
 } from 'lucide-react';
 
 /** Spinner animado — envuelve Loader2 con animate-spin */
