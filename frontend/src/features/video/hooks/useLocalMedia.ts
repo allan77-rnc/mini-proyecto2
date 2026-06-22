@@ -29,10 +29,12 @@ export function useLocalMedia(enabled = true): LocalMedia {
     if (!enabled) {
       streamRef.current?.getTracks().forEach(t => t.stop());
       streamRef.current = null;
-      setStream(null);
-      setError(null);
-      setLoading(false);
-      return;
+      const raf = requestAnimationFrame(() => {
+        setStream(null);
+        setError(null);
+        setLoading(false);
+      });
+      return () => cancelAnimationFrame(raf);
     }
 
     let cancelled = false;
