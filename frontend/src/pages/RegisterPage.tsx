@@ -52,7 +52,11 @@ export function RegisterPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return t('validation.emailInvalid');
     if (ALLOWED_DOMAIN) {
       const domain = value.split('@')[1]?.toLowerCase() ?? '';
-      if (domain !== ALLOWED_DOMAIN.toLowerCase())
+      const allowedDomainLower = ALLOWED_DOMAIN.toLowerCase();
+      // Build pattern: if domain spec starts with ".", use as-is (e.g. ".edu"); otherwise, add dot (e.g. "dominio.edu" → ".dominio.edu")
+      const domainPattern = allowedDomainLower.startsWith('.') ? allowedDomainLower : '.' + allowedDomainLower;
+      // Accept if domain ends with pattern OR is exactly the domain (without leading dot)
+      if (!domain.endsWith(domainPattern) && domain !== allowedDomainLower)
         return t('validation.emailDomain', { domain: ALLOWED_DOMAIN });
     }
     return null;
