@@ -127,6 +127,7 @@ export const es = {
     personalInfo: 'Información Personal',
     firstNameLabel: 'Nombre',
     lastNameLabel: 'Apellidos',
+    lastNameRequired: 'Los apellidos son obligatorios.',
     usernameLabel: 'Nombre de usuario',
     emailLabel: 'Correo electrónico',
     providerNote: 'Inicias sesión con Google. El correo no se puede cambiar aquí.',

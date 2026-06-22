@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
@@ -47,6 +47,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 /* ─── Field ─────────────────────────────────────────────────────── */
 interface FieldProps {
   label: string;
+  required?: boolean;
   value: string;
   onChange: (v: string) => void;
   error?: string;
@@ -58,10 +59,12 @@ interface FieldProps {
   maxLength?: number;
 }
 
-function Field({ label, value, onChange, error, type = 'text', disabled, prefix, hint, autoComplete, maxLength }: FieldProps) {
+function Field({ label, required, value, onChange, error, type = 'text', disabled, prefix, hint, autoComplete, maxLength }: FieldProps) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-600 mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-gray-600 mb-1.5">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
       <div
         className={`flex items-center border rounded-lg bg-white transition-colors ${
           error
@@ -185,16 +188,31 @@ export function ProfilePage() {
   const navigate = useNavigate();
 
   /* ── Form state ── */
-  const [fullName, setFullName] = useState(`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim());
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
   const [bio, setBio] = useState('Computer Science major focusing on AI and Machine Learning. Always looking for study groups in Calculus and Data Structures.');
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(false);
-  const [errors, setErrors] = useState<{ fullName?: string; username?: string }>({});
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; username?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+
+  /* ── Avatar ── */
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarRemoved(false);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }
 
   const usernameChanged = username.trim() !== (user?.username ?? '');
   const { status: usernameStatus, error: usernameApiError, isChecking } = useUsername(
@@ -204,12 +222,18 @@ export function ProfilePage() {
   // Guaranteed non-null by ProtectedRoute — guard is here after all hooks
   if (!user) return null;
 
-  const initials = ((user.firstName[0] ?? '') + (user.lastName[0] ?? '')).toUpperCase() || '?';
+  const displayFirst = firstName || user.firstName;
+  const displayLast = lastName || user.lastName;
+  const initials = ((displayFirst[0] ?? '') + (displayLast[0] ?? '')).toUpperCase() || '?';
+
+  /* ── Resolve avatar source ── */
+  const avatarSrc = avatarRemoved ? null : (avatarPreview ?? user.avatarUrl ?? null);
 
   /* ── Validate ── */
   function validate() {
-    const next: { fullName?: string; username?: string } = {};
-    if (!fullName.trim()) next.fullName = t('validation.firstNameRequired');
+    const next: { firstName?: string; lastName?: string; username?: string } = {};
+    if (!firstName.trim()) next.firstName = t('validation.firstNameRequired');
+    if (!lastName.trim()) next.lastName = t('validation.lastNameRequired');
     if (!username.trim()) next.username = t('validation.usernameRequired');
     else if (usernameChanged && usernameStatus !== 'available') {
       next.username = usernameApiError ?? t('validation.usernameUnavailable');
@@ -225,13 +249,14 @@ export function ProfilePage() {
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    const parts = fullName.trim().split(/\s+/);
     const payload: UpdateProfilePayload = {};
-    const newFirst = parts[0] ?? '';
-    const newLast = parts.slice(1).join(' ');
+    const newFirst = firstName.trim();
+    const newLast = lastName.trim();
     if (newFirst !== user!.firstName) payload.firstName = newFirst;
     if (newLast !== user!.lastName) payload.lastName = newLast;
     if (usernameChanged) payload.username = username.trim();
+    if (avatarRemoved) payload.avatarUrl = '';
+    else if (avatarPreview && avatarPreview !== user!.avatarUrl) payload.avatarUrl = avatarPreview;
 
     if (Object.keys(payload).length === 0) {
       showToast('info', t('profile.noChanges'));
@@ -314,8 +339,8 @@ export function ProfilePage() {
                 className="w-8 h-8 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#1e3252]"
                 title={user.firstName}
               >
-                {user.avatarUrl && !avatarError
-                  ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
+                {avatarSrc && !avatarError
+                  ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
                   : <span className="text-white text-xs font-bold">{initials}</span>
                 }
               </button>
@@ -373,14 +398,34 @@ export function ProfilePage() {
               {/* ── Left: avatar panel ── */}
               <div className="md:w-72 flex-shrink-0 border-b md:border-b-0 md:border-r border-dashed border-blue-200 p-8 flex flex-col items-center">
                 {/* Avatar */}
-                <div className="w-28 h-28 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden mb-4">
-                  {user.avatarUrl && !avatarError
-                    ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
-                    : <span className="text-white text-3xl font-bold">{initials}</span>
-                  }
+                <div className="relative group w-28 h-28 mb-4">
+                  <div className="w-28 h-28 rounded-full bg-[#1e3252] flex items-center justify-center overflow-hidden">
+                    {avatarSrc && !avatarError
+                      ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
+                      : <span className="text-white text-3xl font-bold">{initials}</span>
+                    }
+                  </div>
+                  {/* Overlay al pasar el ratón */}
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    title="Cambiar foto"
+                  >
+                    <IconCamera size={22} className="text-white" />
+                  </button>
                 </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
 
-                <p className="font-bold text-gray-900 text-lg">{fullName || `${user.firstName} ${user.lastName}`}</p>
+                <p className="font-bold text-gray-900 text-lg">
+                  {`${firstName} ${lastName}`.trim() || `${user.firstName} ${user.lastName}`}
+                </p>
                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
                   <IconMail size={13} className="text-gray-400" />
                   {user.email}
@@ -389,17 +434,21 @@ export function ProfilePage() {
                 <div className="w-full mt-6 space-y-2">
                   <button
                     type="button"
+                    onClick={() => fileRef.current?.click()}
                     className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-gray-300 rounded-lg text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                   >
                     <IconCamera size={15} className="text-gray-500" />
                     Change Avatar
                   </button>
-                  <button
-                    type="button"
-                    className="w-full text-sm text-red-500 hover:text-red-700 font-medium transition-colors py-1"
-                  >
-                    Remove Picture
-                  </button>
+                  {(avatarSrc) && (
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarPreview(null); setAvatarRemoved(true); setAvatarError(false); }}
+                      className="w-full text-sm text-red-500 hover:text-red-700 font-medium transition-colors py-1"
+                    >
+                      Remove Picture
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -414,12 +463,23 @@ export function ProfilePage() {
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field
-                      label="Full Name"
-                      value={fullName}
-                      onChange={(v) => { setFullName(v); setErrors(p => ({ ...p, fullName: undefined })); }}
-                      error={errors.fullName}
-                      autoComplete="name"
+                      label={t('profile.firstNameLabel')}
+                      required
+                      value={firstName}
+                      onChange={(v) => { setFirstName(v); setErrors(p => ({ ...p, firstName: undefined })); }}
+                      error={errors.firstName}
+                      autoComplete="given-name"
                     />
+                    <Field
+                      label={t('profile.lastNameLabel')}
+                      required
+                      value={lastName}
+                      onChange={(v) => { setLastName(v); setErrors(p => ({ ...p, lastName: undefined })); }}
+                      error={errors.lastName}
+                      autoComplete="family-name"
+                    />
+                  </div>
+                  <div className="mt-4">
                     <Field
                       label={t('profile.usernameLabel')}
                       value={username}
