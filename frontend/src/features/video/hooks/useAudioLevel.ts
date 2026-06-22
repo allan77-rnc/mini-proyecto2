@@ -9,8 +9,8 @@ export function useAudioLevel(stream: MediaStream | null, active: boolean): numb
 
   useEffect(() => {
     if (!stream || !active || stream.getAudioTracks().length === 0) {
-      setLevel(0);
-      return;
+      const raf = requestAnimationFrame(() => setLevel(0));
+      return () => cancelAnimationFrame(raf);
     }
 
     let cancelled = false;

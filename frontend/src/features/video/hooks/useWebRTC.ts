@@ -50,10 +50,11 @@ export function useWebRTC(
 
   useEffect(() => {
     if (!socket || !localStream) {
-      setParticipants([]);
-      return;
+      const raf = requestAnimationFrame(() => setParticipants([]));
+      return () => cancelAnimationFrame(raf);
     }
 
+    const s = socket; // non-null (guarded above)
     const stream = localStream;
     const peers = new Map<string, RTCPeerConnection>();
     const pendingIce = new Map<string, RTCIceCandidateInit[]>();
@@ -91,13 +92,13 @@ export function useWebRTC(
           if (old) remoteStream.removeTrack(old);
           remoteStream.addTrack(t);
         });
-        upsertParticipant({ userId: socketId, stream: remoteStream });
+        upsertParticipant({ userId: socketId, username: peerUsername, stream: remoteStream });
       };
 
       pc.onicecandidate = async (e) => {
         if (e.candidate) {
           const idToken = await getIdToken();
-          socket.emit('webrtc:ice-candidate', {
+          s.emit('webrtc:ice-candidate', {
             targetSocketId: socketId,
             candidate: e.candidate.toJSON(),
             idToken,
@@ -126,7 +127,7 @@ export function useWebRTC(
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         const idToken = await getIdToken();
-        socket.emit('webrtc:offer', {
+        s.emit('webrtc:offer', {
           targetSocketId: socketId,
           sdp: pc.localDescription!.toJSON(),
           idToken,
@@ -154,7 +155,7 @@ export function useWebRTC(
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       const idToken = await getIdToken();
-      socket.emit('webrtc:answer', {
+      s.emit('webrtc:answer', {
         targetSocketId: fromSocketId,
         sdp: pc.localDescription!.toJSON(),
         idToken,
@@ -185,12 +186,12 @@ export function useWebRTC(
       upsertParticipant({ userId: socketId, username, audioEnabled, videoEnabled });
     }
 
-    socket.on('room:user-joined', onUserJoined);
-    socket.on('room:user-left', onUserLeft);
-    socket.on('webrtc:offer', onOffer);
-    socket.on('webrtc:answer', onAnswer);
-    socket.on('webrtc:ice-candidate', onIce);
-    socket.on('webrtc:media-state', onMediaState);
+    s.on('room:user-joined', onUserJoined);
+    s.on('room:user-left', onUserLeft);
+    s.on('webrtc:offer', onOffer);
+    s.on('webrtc:answer', onAnswer);
+    s.on('webrtc:ice-candidate', onIce);
+    s.on('webrtc:media-state', onMediaState);
 
     // Send offers to all participants who were already in the room
     for (const peer of currentPeersRef.current) {
@@ -198,12 +199,12 @@ export function useWebRTC(
     }
 
     return () => {
-      socket.off('room:user-joined', onUserJoined);
-      socket.off('room:user-left', onUserLeft);
-      socket.off('webrtc:offer', onOffer);
-      socket.off('webrtc:answer', onAnswer);
-      socket.off('webrtc:ice-candidate', onIce);
-      socket.off('webrtc:media-state', onMediaState);
+      s.off('room:user-joined', onUserJoined);
+      s.off('room:user-left', onUserLeft);
+      s.off('webrtc:offer', onOffer);
+      s.off('webrtc:answer', onAnswer);
+      s.off('webrtc:ice-candidate', onIce);
+      s.off('webrtc:media-state', onMediaState);
       peers.forEach(pc => pc.close());
       setParticipants([]);
     };
