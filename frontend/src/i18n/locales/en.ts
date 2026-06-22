@@ -127,6 +127,7 @@ export const en = {
     personalInfo: 'Personal Information',
     firstNameLabel: 'First name',
     lastNameLabel: 'Last name',
+    lastNameRequired: 'Last name is required.',
     usernameLabel: 'Username',
     emailLabel: 'Email',
     providerNote: 'You sign in with Google. Email cannot be changed here.',
