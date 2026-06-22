@@ -168,8 +168,8 @@ export function RoomPage() {
 
   const isHost = !!room && !!user && room.hostUid === user.uid;
 
-  /* ── Local media (camera + mic) ── */
-  const localMedia = useLocalMedia();
+  /* ── Local media (camera + mic) — only acquired while on Video tab ── */
+  const localMedia = useLocalMedia(activeTab === 'video');
 
   /* ── WebRTC P2P (shared socket — no duplicate join-room) ── */
   const { participants, broadcastMediaState } = useWebRTC(

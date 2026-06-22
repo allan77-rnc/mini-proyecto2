@@ -16,16 +16,27 @@ export interface LocalMedia {
   retry: () => void;
 }
 
-export function useLocalMedia(): LocalMedia {
+export function useLocalMedia(enabled = true): LocalMedia {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<MediaPermissionError | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      const raf = requestAnimationFrame(() => {
+        setStream(null);
+        setError(null);
+        setLoading(false);
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+
     let cancelled = false;
 
     async function acquire() {
@@ -69,7 +80,7 @@ export function useLocalMedia(): LocalMedia {
 
     acquire();
     return () => { cancelled = true; };
-  }, [attempt]);
+  }, [attempt, enabled]);
 
   // Stop all tracks on unmount
   useEffect(() => {
