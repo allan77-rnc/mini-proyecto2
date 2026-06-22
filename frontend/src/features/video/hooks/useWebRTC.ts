@@ -18,9 +18,22 @@ export interface PeerInfo {
   videoEnabled: boolean;
 }
 
+const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined) ?? 'openrelay.metered.ca';
+const TURN_USER = (import.meta.env.VITE_TURN_USERNAME as string | undefined) ?? 'openrelayproject';
+const TURN_CRED = (import.meta.env.VITE_TURN_CREDENTIAL as string | undefined) ?? 'openrelayproject';
+
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  {
+    urls: [
+      `turn:${TURN_URL}:80`,
+      `turn:${TURN_URL}:443`,
+      `turns:${TURN_URL}:443`,
+    ],
+    username: TURN_USER,
+    credential: TURN_CRED,
+  },
 ];
 
 /**
