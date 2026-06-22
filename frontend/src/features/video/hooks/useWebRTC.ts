@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 export interface RemoteParticipant {
   userId: string;
   username: string;
+  avatarUrl?: string;
   stream: MediaStream | null;
   audioEnabled: boolean;
   videoEnabled: boolean;
@@ -13,6 +14,7 @@ interface SignalMessage {
   from: string;
   to: string;
   username: string;
+  avatarUrl?: string;
   type: 'announce' | 'leave' | 'offer' | 'answer' | 'ice' | 'media-state';
   payload?: unknown;
 }
@@ -31,6 +33,7 @@ export function useWebRTC(
   userId: string,
   username: string,
   localStream: MediaStream | null,
+  avatarUrl?: string,
 ) {
   const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -41,10 +44,11 @@ export function useWebRTC(
       from: userId,
       to: 'broadcast',
       username,
+      avatarUrl,
       type: 'media-state',
       payload: { audioEnabled, videoEnabled },
     } satisfies SignalMessage);
-  }, [roomId, userId, username]);
+  }, [roomId, userId, username, avatarUrl]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -56,8 +60,8 @@ export function useWebRTC(
     const peers = new Map<string, RTCPeerConnection>();
     const pendingIce = new Map<string, RTCIceCandidateInit[]>();
 
-    function send(msg: Omit<SignalMessage, 'roomId' | 'from' | 'username'>) {
-      channel.postMessage({ ...msg, roomId, from: userId, username } satisfies SignalMessage);
+    function send(msg: Omit<SignalMessage, 'roomId' | 'from' | 'username' | 'avatarUrl'>) {
+      channel.postMessage({ ...msg, roomId, from: userId, username, avatarUrl } satisfies SignalMessage);
     }
 
     function upsertParticipant(update: Partial<RemoteParticipant> & { userId: string }) {
@@ -126,11 +130,11 @@ export function useWebRTC(
 
       switch (msg.type) {
         case 'announce': {
+          // Always store avatar/username even if peer already exists
+          upsertParticipant({ userId: msg.from, username: msg.username, avatarUrl: msg.avatarUrl });
           if (!peers.has(msg.from)) {
-            // Deterministic initiator: higher userId string starts the offer
             createPeer(msg.from, msg.username, userId > msg.from);
           }
-          // Reply to broadcast announces so the new user discovers us
           if (msg.to === 'broadcast') {
             send({ type: 'announce', to: msg.from });
           }
@@ -187,7 +191,7 @@ export function useWebRTC(
       peers.forEach(pc => pc.close());
       setParticipants([]);
     };
-  }, [roomId, userId, username, localStream]);
+  }, [roomId, userId, username, avatarUrl, localStream]);
 
   return { participants, broadcastMediaState };
 }

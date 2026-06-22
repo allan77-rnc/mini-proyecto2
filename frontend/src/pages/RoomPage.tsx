@@ -173,6 +173,7 @@ export function RoomPage() {
     user?.uid ?? '',
     user?.username ?? user?.firstName ?? 'Usuario',
     activeTab === 'video' ? localMedia.stream : null,
+    user?.avatarUrl,
   );
 
   /* ── Propagate local mute/cam state to peers ── */
@@ -492,6 +493,7 @@ export function RoomPage() {
                         <VideoTile
                           stream={localMedia.stream}
                           username={user?.username ?? user?.firstName ?? 'Tú'}
+                          avatarUrl={user?.avatarUrl}
                           isLocal
                           audioEnabled={localMedia.audioEnabled}
                           videoEnabled={localMedia.videoEnabled}
@@ -523,6 +525,7 @@ export function RoomPage() {
                               <VideoTile
                                 stream={localMedia.stream}
                                 username={user?.username ?? user?.firstName ?? 'Tú'}
+                                avatarUrl={user?.avatarUrl}
                                 isLocal
                                 audioEnabled={localMedia.audioEnabled}
                                 videoEnabled={localMedia.videoEnabled}
@@ -536,6 +539,7 @@ export function RoomPage() {
                               <VideoTile
                                 stream={p.stream}
                                 username={p.username}
+                                avatarUrl={p.avatarUrl}
                                 audioEnabled={p.audioEnabled}
                                 videoEnabled={p.videoEnabled}
                               />
@@ -569,11 +573,18 @@ export function RoomPage() {
                         const isOwn = msg.senderUid === user?.uid;
                         const sameAuthor = messages[idx - 1]?.senderUid === msg.senderUid;
                         const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
+                        const msgAvatar = isOwn
+                          ? user?.avatarUrl
+                          : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
                         return (
                           <div key={msg.id} className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-gray-600'}`}>
-                              {initial}
-                            </div>
+                            {msgAvatar ? (
+                              <img src={msgAvatar} alt={msg.senderUsername} className={`w-6 h-6 rounded-full object-cover flex-shrink-0 ${sameAuthor ? 'opacity-0' : ''}`} />
+                            ) : (
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-gray-600'}`}>
+                                {initial}
+                              </div>
+                            )}
                             <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[80%]`}>
                               {!sameAuthor && (
                                 <span className="text-[10px] font-medium text-gray-400 mb-0.5">
@@ -697,12 +708,19 @@ export function RoomPage() {
                 const prevMsg = messages[idx - 1];
                 const sameAuthor = prevMsg?.senderUid === msg.senderUid;
                 const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
+                const msgAvatar = isOwn
+                  ? user?.avatarUrl
+                  : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
 
                 return (
                   <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
-                      {initial}
-                    </div>
+                    {msgAvatar ? (
+                      <img src={msgAvatar} alt={msg.senderUsername} className={`w-7 h-7 rounded-full object-cover flex-shrink-0 ${sameAuthor ? 'opacity-0' : ''}`} />
+                    ) : (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-[#1e3252]'}`}>
+                        {initial}
+                      </div>
+                    )}
                     <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[70%]`}>
                       {!sameAuthor && (
                         <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>

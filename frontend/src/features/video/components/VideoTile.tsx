@@ -4,6 +4,7 @@ import { IconMicOff, IconVideoOff } from '../../../components/icons';
 interface VideoTileProps {
   stream: MediaStream | null;
   username: string;
+  avatarUrl?: string | null;
   isLocal?: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
@@ -13,6 +14,7 @@ interface VideoTileProps {
 export function VideoTile({
   stream,
   username,
+  avatarUrl,
   isLocal = false,
   audioEnabled,
   videoEnabled,
@@ -45,9 +47,18 @@ export function VideoTile({
       {/* Avatar fallback */}
       {!showVideo && (
         <div className="flex flex-col items-center gap-2">
-          <div className="w-16 h-16 rounded-full bg-[#1e3252] flex items-center justify-center text-white text-xl font-bold select-none">
-            {initials}
-          </div>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={username}
+              className="w-16 h-16 rounded-full object-cover ring-2 ring-white/10"
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-[#1e3252] flex items-center justify-center text-white text-xl font-bold select-none">
+              {initials}
+            </div>
+          )}
           {!videoEnabled && stream && (
             <span className="text-gray-400 text-xs flex items-center gap-1">
               <IconVideoOff size={12} /> Cámara apagada
