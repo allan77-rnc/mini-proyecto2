@@ -47,6 +47,7 @@ export {
   StickyNote        as IconNote,
   HelpCircle        as IconHelp,
   LogOut            as IconLogOut,
+  ChevronLeft       as IconChevronLeft,
   Mic               as IconMic,
   MicOff            as IconMicOff,
   Video             as IconVideo,

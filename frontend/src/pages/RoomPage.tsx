@@ -10,9 +10,10 @@ import {
   IconPencil, IconTrash, IconSend, IconSpinner, IconAlertTriangle,
   IconMoreVertical, IconCopy, IconX, IconCheckCircle,
   IconFolder, IconNote, IconHelp, IconLogOut, IconVideo,
+  IconChevronLeft, IconChevronRight, IconClock,
 } from '../components/icons';
 import {
-  useLocalMedia, useWebRTC,
+  useLocalMedia, useWebRTC, useAudioLevel,
   VideoGrid, VideoTile, PermissionBanner, MediaControls,
 } from '../features/video';
 
@@ -145,6 +146,8 @@ export function RoomPage() {
   const [sending, setSending] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'chat' | 'video'>('chat');
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
 
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -186,6 +189,12 @@ export function RoomPage() {
       broadcastMediaState(localMedia.audioEnabled, localMedia.videoEnabled);
     }
   }, [activeTab, localMedia.audioEnabled, localMedia.videoEnabled, broadcastMediaState]);
+
+  /* ── Audio level for speaking indicator ── */
+  const audioLevel = useAudioLevel(
+    activeTab === 'video' ? localMedia.stream : null,
+    localMedia.audioEnabled,
+  );
 
   /* ── Scroll to bottom on new messages ── */
   useEffect(() => {
@@ -301,7 +310,21 @@ export function RoomPage() {
   return (
     <div className="h-screen flex bg-[#eef0f3] overflow-hidden">
 
+      {/* ── Sidebar collapsed strip ── */}
+      {!sidebarVisible && (
+        <div className="flex flex-col items-center py-4 px-1 flex-shrink-0">
+          <button
+            onClick={() => setSidebarVisible(true)}
+            className="w-7 h-7 rounded-full bg-white/60 hover:bg-white text-gray-500 hover:text-gray-800 flex items-center justify-center shadow transition-all"
+            title="Mostrar barra lateral"
+          >
+            <IconChevronRight size={13} />
+          </button>
+        </div>
+      )}
+
       {/* ── Left Sidebar ── */}
+      {sidebarVisible && (
       <aside className="w-48 flex flex-col py-5 px-3 flex-shrink-0">
 
         {/* Logo + Room Info */}
@@ -427,26 +450,28 @@ export function RoomPage() {
             <IconLogOut size={15} />
             Leave
           </button>
+          <button
+            onClick={() => setSidebarVisible(false)}
+            className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-400 rounded-xl hover:bg-gray-100 transition-colors"
+            title="Ocultar barra lateral"
+          >
+            <IconChevronLeft size={15} />
+            Ocultar
+          </button>
         </div>
       </aside>
+      )}  {/* end sidebar conditional */}
 
       {/* ── Main Area ── */}
-      <main className="flex-1 flex flex-col bg-white rounded-l-3xl overflow-hidden my-3 mr-3 shadow-sm">
+      <main className={[
+        'flex-1 flex flex-col overflow-hidden my-3 mr-3 shadow-sm',
+        sidebarVisible ? 'rounded-l-3xl' : 'ml-3 rounded-3xl',
+        activeTab === 'video' ? 'bg-gray-900' : 'bg-white',
+      ].join(' ')}>
 
         {/* ─ Video Tab ─ */}
         {activeTab === 'video' && (
           <>
-            {/* Header */}
-            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
-              <IconVideo size={16} className="text-teal-500" />
-              <span className="text-sm font-semibold text-gray-800">Video</span>
-              <div className="flex-1" />
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <IconUsers size={12} />
-                <span>{1 + participants.length} en sala</span>
-              </div>
-            </div>
-
             {/* Permission error */}
             {localMedia.error ? (
               <PermissionBanner error={localMedia.error} onRetry={localMedia.retry} />
@@ -455,45 +480,152 @@ export function RoomPage() {
                 <IconSpinner size={28} className="text-gray-400" />
               </div>
             ) : (
-              /* Video grid */
-              <div className="flex-1 min-h-0 bg-gray-900">
-                <VideoGrid
-                  tiles={[
-                    {
-                      id: user?.uid ?? 'local',
-                      node: (
+              /* Video area + optional chat panel */
+              <div className="flex flex-1 min-h-0 overflow-hidden">
+
+                {/* ── Video section ── */}
+                <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                  {participants.length === 0 ? (
+                    /* Solo layout: local tile left, waiting placeholder right */
+                    <div className="flex flex-1 min-h-0 gap-2 p-2">
+                      <div className="w-52 flex-shrink-0">
                         <VideoTile
                           stream={localMedia.stream}
                           username={user?.username ?? user?.firstName ?? 'Tú'}
                           isLocal
                           audioEnabled={localMedia.audioEnabled}
                           videoEnabled={localMedia.videoEnabled}
+                          isSpeaking={audioLevel > 0.05}
                         />
-                      ),
-                    },
-                    ...participants.map(p => ({
-                      id: p.userId,
-                      node: (
-                        <VideoTile
-                          stream={p.stream}
-                          username={p.username}
-                          audioEnabled={p.audioEnabled}
-                          videoEnabled={p.videoEnabled}
+                      </div>
+                      <div className="flex-1 rounded-2xl bg-[#131720] flex flex-col items-center justify-center gap-4 select-none">
+                        <div className="w-14 h-14 rounded-2xl bg-[#1e2535] flex items-center justify-center">
+                          <IconClock size={26} className="text-gray-500" />
+                        </div>
+                        <div className="text-center px-6">
+                          <p className="font-semibold text-gray-300">Esperando participantes...</p>
+                          <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                            Comparte el ID de la sala{' '}
+                            <span className="font-bold text-gray-300">{id}</span>{' '}
+                            para que otros se unan a la sesión de estudio.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Multi-participant grid */
+                    <div className="flex-1 min-h-0">
+                      <VideoGrid
+                        tiles={[
+                          {
+                            id: user?.uid ?? 'local',
+                            node: (
+                              <VideoTile
+                                stream={localMedia.stream}
+                                username={user?.username ?? user?.firstName ?? 'Tú'}
+                                isLocal
+                                audioEnabled={localMedia.audioEnabled}
+                                videoEnabled={localMedia.videoEnabled}
+                                isSpeaking={audioLevel > 0.05}
+                              />
+                            ),
+                          },
+                          ...participants.map(p => ({
+                            id: p.userId,
+                            node: (
+                              <VideoTile
+                                stream={p.stream}
+                                username={p.username}
+                                audioEnabled={p.audioEnabled}
+                                videoEnabled={p.videoEnabled}
+                              />
+                            ),
+                          })),
+                        ]}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Chat panel ── */}
+                {chatPanelOpen && (
+                  <div className="w-72 flex flex-col border-l border-white/10 bg-gray-950 flex-shrink-0 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
+                      <span className="text-sm font-semibold text-white">Chat de la sala</span>
+                      <button
+                        onClick={() => setChatPanelOpen(false)}
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        <IconX size={15} />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 min-h-0">
+                      {messages.length === 0 && (
+                        <div className="flex items-center justify-center h-full">
+                          <p className="text-gray-500 text-sm text-center">Sin mensajes todavía.</p>
+                        </div>
+                      )}
+                      {messages.map((msg, idx) => {
+                        const isOwn = msg.senderUid === user?.uid;
+                        const sameAuthor = messages[idx - 1]?.senderUid === msg.senderUid;
+                        const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
+                        return (
+                          <div key={msg.id} className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white ${sameAuthor ? 'opacity-0' : ''} ${isOwn ? 'bg-teal-500' : 'bg-gray-600'}`}>
+                              {initial}
+                            </div>
+                            <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                              {!sameAuthor && (
+                                <span className="text-[10px] font-medium text-gray-400 mb-0.5">
+                                  {msg.senderUsername}
+                                </span>
+                              )}
+                              <div className={`px-2.5 py-1.5 rounded-xl text-xs leading-relaxed break-words ${
+                                isOwn ? 'bg-teal-600 text-white' : 'bg-gray-700 text-gray-100'
+                              }`}>
+                                {msg.text}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={bottomRef} />
+                    </div>
+                    <div className="px-3 py-3 border-t border-white/10 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={input}
+                          onChange={e => setInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                          placeholder="Escribe un mensaje..."
+                          maxLength={2000}
+                          className="flex-1 px-3 py-2 bg-gray-800 rounded-xl text-xs text-gray-100 placeholder-gray-500 outline-none focus:ring-1 focus:ring-teal-500 transition-all"
                         />
-                      ),
-                    })),
-                  ]}
-                />
+                        <button
+                          onClick={handleSend}
+                          disabled={!input.trim() || sending}
+                          className="w-8 h-8 flex items-center justify-center bg-teal-500 hover:bg-teal-400 text-white rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                        >
+                          {sending ? <IconSpinner size={13} /> : <IconSend size={13} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Media controls */}
+            {/* Dark pill control bar */}
             {!localMedia.error && (
               <MediaControls
                 audioEnabled={localMedia.audioEnabled}
                 videoEnabled={localMedia.videoEnabled}
+                chatOpen={chatPanelOpen}
+                audioLevel={audioLevel}
                 onToggleAudio={localMedia.toggleAudio}
                 onToggleVideo={localMedia.toggleVideo}
+                onToggleChat={() => setChatPanelOpen(v => !v)}
                 onLeave={() => navigate('/dashboard')}
               />
             )}

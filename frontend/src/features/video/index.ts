@@ -1,5 +1,6 @@
 export { useLocalMedia } from './hooks/useLocalMedia';
 export { useWebRTC } from './hooks/useWebRTC';
+export { useAudioLevel } from './hooks/useAudioLevel';
 export { VideoGrid } from './components/VideoGrid';
 export { VideoTile } from './components/VideoTile';
 export { PermissionBanner } from './components/PermissionBanner';
