@@ -80,46 +80,148 @@ Base path: `/api`. Swagger UI: `http://localhost:3000/api/docs`
 
 Auth is passed per-event as `idToken` (Firebase ID token), not in the connection handshake.
 
-### Events
+### Event reference
+
+**Chat + presence**
 
 | Client → Server | Payload | Description |
 |---|---|---|
 | `join-room` | `{ roomId, idToken }` | Join a room channel |
 | `leave-room` | — | Leave current room |
-| `send-message` | `{ roomId, text, idToken }` | Send a message |
+| `send-message` | `{ roomId, text, idToken }` | Send a chat message |
 
 | Server → Client | Payload | Description |
 |---|---|---|
-| `room:joined` | `{ roomId }` | Confirms join (to the joining client) |
-| `room:user-joined` | `{ username }` | Someone joined (to others in room) |
-| `room:user-left` | `{ username }` | Someone left (to others in room) |
-| `room:message` | `{ id, roomId, senderUid, senderUsername, text, createdAt }` | New message (to all in room) |
+| `room:joined` | `{ roomId, socketId, participants[] }` | Confirms join; includes own socket ID and list of current peers |
+| `room:user-joined` | `{ socketId, username }` | Someone joined (to others in room) |
+| `room:user-left` | `{ socketId, username }` | Someone left (to others in room) |
+| `room:message` | `{ id, roomId, senderUid, senderUsername, text, createdAt }` | New chat message |
 
-### Frontend integration
+`participants[]` shape (inside `room:joined`):
+```ts
+{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean }[]
+```
 
-**Install:**
+**WebRTC signaling** (server just relays — never touches media)
+
+| Client → Server | Payload | Description |
+|---|---|---|
+| `webrtc:offer` | `{ targetSocketId, sdp, idToken }` | Send SDP offer to a specific peer |
+| `webrtc:answer` | `{ targetSocketId, sdp, idToken }` | Send SDP answer to a specific peer |
+| `webrtc:ice-candidate` | `{ targetSocketId, candidate, idToken }` | Send ICE candidate to a specific peer |
+| `webrtc:media-state` | `{ idToken, audioEnabled, videoEnabled }` | Broadcast own mute/camera toggle |
+
+| Server → Client | Payload | Description |
+|---|---|---|
+| `webrtc:offer` | `{ fromSocketId, sdp }` | Forwarded SDP offer from a peer |
+| `webrtc:answer` | `{ fromSocketId, sdp }` | Forwarded SDP answer from a peer |
+| `webrtc:ice-candidate` | `{ fromSocketId, candidate }` | Forwarded ICE candidate from a peer |
+| `webrtc:media-state` | `{ socketId, username, audioEnabled, videoEnabled }` | Peer toggled mute/camera |
+
+---
+
+### Frontend integration guide
+
+#### 1. Install
+
 ```bash
 bun add socket.io-client
 ```
 
-**Connect:**
+#### 2. Setup: socket + helpers
+
 ```ts
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { getAuth } from 'firebase/auth';
 
-const socket = io('http://localhost:3000/rooms', {
+const BACKEND_URL = 'http://localhost:3000';
+
+const socket: Socket = io(`${BACKEND_URL}/rooms`, {
   transports: ['websocket'],
   autoConnect: false,
 });
 
-async function getIdToken() {
+async function getIdToken(): Promise<string> {
   const user = getAuth().currentUser;
   if (!user) throw new Error('Not authenticated');
   return user.getIdToken();
 }
 ```
 
-**Join a room:**
+#### 3. Setup: WebRTC peer connections map
+
+Each remote participant gets their own `RTCPeerConnection`. Keep a map keyed by `socketId`.
+
+```ts
+const ICE_SERVERS = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
+// Map<socketId, RTCPeerConnection>
+const peers = new Map<string, RTCPeerConnection>();
+
+// Your local camera/mic stream — set this before joining the room
+let localStream: MediaStream | null = null;
+```
+
+#### 4. Get local media (camera + microphone)
+
+Call this before connecting to the socket. If the user denies permissions, show an error and let them join in chat-only mode.
+
+```ts
+async function getLocalStream(): Promise<MediaStream | null> {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    // Render own preview
+    const myVideo = document.getElementById('my-video') as HTMLVideoElement;
+    myVideo.srcObject = localStream;
+    return localStream;
+  } catch (err) {
+    console.warn('Camera/mic denied, joining in chat-only mode', err);
+    // Show a UI message explaining how to enable permissions
+    return null;
+  }
+}
+```
+
+#### 5. Create a RTCPeerConnection for a peer
+
+This helper creates the connection, attaches the local stream, and wires up all the callbacks.
+
+```ts
+function createPeerConnection(remoteSocketId: string): RTCPeerConnection {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+  peers.set(remoteSocketId, pc);
+
+  // Add local tracks so the remote peer receives our stream
+  localStream?.getTracks().forEach((track) => {
+    pc.addTrack(track, localStream!);
+  });
+
+  // Forward ICE candidates to the signaling server
+  pc.onicecandidate = async ({ candidate }) => {
+    if (!candidate) return;
+    const idToken = await getIdToken();
+    socket.emit('webrtc:ice-candidate', {
+      targetSocketId: remoteSocketId,
+      candidate: candidate.toJSON(),
+      idToken,
+    });
+  };
+
+  // Render remote stream when tracks arrive
+  pc.ontrack = ({ streams }) => {
+    renderRemoteStream(remoteSocketId, streams[0]);
+  };
+
+  return pc;
+}
+```
+
+#### 6. Join a room and start the P2P mesh
+
+When `room:joined` fires, the server sends all current participants. The joining client is the **offerer** for every existing peer.
+
 ```ts
 socket.connect();
 
@@ -128,20 +230,127 @@ socket.on('connect', async () => {
   socket.emit('join-room', { roomId: '<room-uuid>', idToken });
 });
 
-socket.on('room:joined', ({ roomId }) => {
-  console.log('Joined room', roomId);
-});
+socket.on('room:joined', async ({ roomId, socketId: mySocketId, participants }) => {
+  console.log('Joined room', roomId, '| my socketId:', mySocketId);
 
-socket.on('room:user-joined', ({ username }) => {
-  console.log(username, 'joined');
-});
+  // Render existing participants in the grid (video/avatar cards)
+  for (const peer of participants) {
+    addParticipantCard(peer.socketId, peer.username, peer.audioEnabled, peer.videoEnabled);
+  }
 
-socket.on('room:user-left', ({ username }) => {
+  // Initiate a P2P offer to each existing participant
+  for (const peer of participants) {
+    const pc = createPeerConnection(peer.socketId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const idToken = await getIdToken();
+    socket.emit('webrtc:offer', {
+      targetSocketId: peer.socketId,
+      sdp: offer,
+      idToken,
+    });
+  }
+});
+```
+
+#### 7. Handle a new participant joining
+
+When someone else joins, they will send you an offer. Add their card to the grid now — the stream will arrive via `ontrack` once ICE completes.
+
+```ts
+socket.on('room:user-joined', ({ socketId, username }) => {
+  addParticipantCard(socketId, username, true, true);
+  // Don't create a PeerConnection here — wait for their offer (they are the offerer)
+});
+```
+
+#### 8. Handle incoming offer → send answer
+
+```ts
+socket.on('webrtc:offer', async ({ fromSocketId, sdp }) => {
+  const pc = createPeerConnection(fromSocketId);
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  const idToken = await getIdToken();
+  socket.emit('webrtc:answer', {
+    targetSocketId: fromSocketId,
+    sdp: answer,
+    idToken,
+  });
+});
+```
+
+#### 9. Handle incoming answer
+
+```ts
+socket.on('webrtc:answer', async ({ fromSocketId, sdp }) => {
+  const pc = peers.get(fromSocketId);
+  if (!pc) return;
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+});
+```
+
+#### 10. Handle incoming ICE candidates
+
+```ts
+socket.on('webrtc:ice-candidate', async ({ fromSocketId, candidate }) => {
+  const pc = peers.get(fromSocketId);
+  if (!pc) return;
+  await pc.addIceCandidate(new RTCIceCandidate(candidate));
+});
+```
+
+#### 11. Handle a peer leaving
+
+Close the connection and remove their card from the grid.
+
+```ts
+socket.on('room:user-left', ({ socketId, username }) => {
+  const pc = peers.get(socketId);
+  if (pc) {
+    pc.close();
+    peers.delete(socketId);
+  }
+  removeParticipantCard(socketId);
   console.log(username, 'left');
 });
 ```
 
-**Send and receive messages:**
+#### 12. Toggle mute / camera
+
+```ts
+async function setAudioEnabled(enabled: boolean) {
+  localStream?.getAudioTracks().forEach((t) => (t.enabled = enabled));
+  const idToken = await getIdToken();
+  socket.emit('webrtc:media-state', {
+    idToken,
+    audioEnabled: enabled,
+    videoEnabled: localStream?.getVideoTracks()[0]?.enabled ?? false,
+  });
+}
+
+async function setVideoEnabled(enabled: boolean) {
+  localStream?.getVideoTracks().forEach((t) => (t.enabled = enabled));
+  const idToken = await getIdToken();
+  socket.emit('webrtc:media-state', {
+    idToken,
+    audioEnabled: localStream?.getAudioTracks()[0]?.enabled ?? false,
+    videoEnabled: enabled,
+  });
+}
+
+// Update other participants' UI when they toggle
+socket.on('webrtc:media-state', ({ socketId, username, audioEnabled, videoEnabled }) => {
+  updateParticipantCard(socketId, audioEnabled, videoEnabled);
+});
+```
+
+#### 13. Send and receive chat messages
+
 ```ts
 socket.on('room:message', (msg) => {
   // { id, roomId, senderUid, senderUsername, text, createdAt }
@@ -154,11 +363,27 @@ async function sendMessage(roomId: string, text: string) {
 }
 ```
 
-**Leave:**
+#### 14. Leave and clean up
+
 ```ts
-socket.emit('leave-room');  // notify others
-socket.disconnect();        // close connection
+function leaveRoom() {
+  // Close all peer connections
+  peers.forEach((pc) => pc.close());
+  peers.clear();
+
+  // Stop local tracks
+  localStream?.getTracks().forEach((t) => t.stop());
+
+  socket.emit('leave-room');
+  socket.disconnect();
+}
 ```
 
-> **Note:** Firebase ID tokens expire after 1 hour. If the user has been idle, refresh before emitting:  
-> `await user.getIdToken(true)`
+---
+
+### Notes
+
+- **Token expiry:** Firebase ID tokens expire after 1 hour. If the user has been idle, refresh before emitting: `await user.getIdToken(true)`
+- **Chat-only mode:** If `getUserMedia` throws (permissions denied), `localStream` will be `null`. The socket still connects and the user can send chat messages — `createPeerConnection` safely skips `addTrack` when `localStream` is null.
+- **Single room per socket:** A socket can only be in one room at a time. Call `leaveRoom()` before joining a different one.
+- **STUN only:** The default ICE config uses Google's public STUN server. For production behind symmetric NAT you will need a TURN server.
