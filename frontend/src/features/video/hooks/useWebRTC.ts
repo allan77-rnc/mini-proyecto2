@@ -27,7 +27,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   {
     urls: [
-      `turn:${TURN_URL}:80`,
+      `turn:${TURN_URL}:3478`,    
       `turn:${TURN_URL}:443`,
       `turns:${TURN_URL}:443`,
     ],
