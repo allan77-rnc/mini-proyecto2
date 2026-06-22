@@ -1,8 +1,35 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { ServerOptions } from 'socket.io';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+class CorsIoAdapter extends IoAdapter {
+  private readonly allowedOrigins: string[];
+
+  constructor(app: Parameters<typeof IoAdapter.prototype.createIOServer>[1], allowedOrigins: string[]) {
+    super(app);
+    this.allowedOrigins = allowedOrigins;
+  }
+
+  createIOServer(port: number, options?: ServerOptions): ReturnType<IoAdapter['createIOServer']> {
+    return super.createIOServer(port, {
+      ...options,
+      cors: {
+        origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+          if (!origin || this.allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error(`WS CORS: origin ${origin} not allowed`));
+          }
+        },
+        credentials: true,
+      },
+    });
+  }
+}
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +40,7 @@ async function bootstrap(): Promise<void> {
   // CORS — supports multiple origins via comma-separated ALLOWED_ORIGINS env var
   const rawOrigins = process.env['ALLOWED_ORIGINS'] ?? process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
   const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (e.g. curl, Swagger UI, mobile apps)
@@ -24,6 +52,9 @@ async function bootstrap(): Promise<void> {
     },
     credentials: true,
   });
+
+  // Socket.io adapter — uses the same origin list so there are no conflicting CORS headers
+  app.useWebSocketAdapter(new CorsIoAdapter(app, allowedOrigins));
 
   // Global validation pipe — strips unknown fields, auto-transforms types
   app.useGlobalPipes(

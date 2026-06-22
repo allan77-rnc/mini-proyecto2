@@ -59,7 +59,7 @@ interface WebRtcMediaStatePayload {
   videoEnabled: boolean;
 }
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/rooms' })
+@WebSocketGateway({ namespace: '/rooms' })
 export class RoomsGateway implements OnGatewayDisconnect {
   @WebSocketServer() private readonly server!: Server;
 

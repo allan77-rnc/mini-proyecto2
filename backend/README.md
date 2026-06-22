@@ -134,10 +134,12 @@ bun add socket.io-client
 import { io, Socket } from 'socket.io-client';
 import { getAuth } from 'firebase/auth';
 
-const BACKEND_URL = 'http://localhost:3000';
+const BACKEND_URL = 'https://mini-proyecto2.onrender.com'; // or http://localhost:3000 locally
 
 const socket: Socket = io(`${BACKEND_URL}/rooms`, {
-  transports: ['websocket'],
+  // Do NOT force transports: ['websocket'] — allow polling as fallback.
+  // On Render free tier the instance may be sleeping; polling tolerates the
+  // cold-start delay (~30 s) and then upgrades to WebSocket automatically.
   autoConnect: false,
 });
 
@@ -387,3 +389,5 @@ function leaveRoom() {
 - **Chat-only mode:** If `getUserMedia` throws (permissions denied), `localStream` will be `null`. The socket still connects and the user can send chat messages — `createPeerConnection` safely skips `addTrack` when `localStream` is null.
 - **Single room per socket:** A socket can only be in one room at a time. Call `leaveRoom()` before joining a different one.
 - **STUN only:** The default ICE config uses Google's public STUN server. For production behind symmetric NAT you will need a TURN server.
+- **Render cold starts:** The free-tier backend sleeps after 15 min of inactivity and takes ~30 s to wake up. Do NOT use `transports: ['websocket']` — that fails immediately during cold start. Omit `transports` so Socket.io uses polling first (which tolerates the delay) and then auto-upgrades to WebSocket.
+- **CORS:** The backend only accepts WebSocket connections from origins listed in the `ALLOWED_ORIGINS` environment variable on Render. Make sure the deployed frontend URL is in that list.
