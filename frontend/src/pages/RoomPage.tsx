@@ -15,6 +15,7 @@ import {
 import {
   useLocalMedia, useWebRTC, useAudioLevel,
   VideoGrid, VideoTile, PermissionBanner, MediaControls,
+  type PeerInfo,
 } from '../features/video';
 
 const WS_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000')
@@ -159,6 +160,9 @@ export function RoomPage() {
   const [copied, setCopied] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
+  const [rtcSocket, setRtcSocket] = useState<Socket | null>(null);
+  const [rtcPeers, setRtcPeers] = useState<PeerInfo[]>([]);
+
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -167,13 +171,11 @@ export function RoomPage() {
   /* ── Local media (camera + mic) ── */
   const localMedia = useLocalMedia();
 
-  /* ── WebRTC P2P ── */
+  /* ── WebRTC P2P (shared socket — no duplicate join-room) ── */
   const { participants, broadcastMediaState } = useWebRTC(
-    id ?? '',
-    user?.uid ?? '',
-    user?.username ?? user?.firstName ?? 'Usuario',
+    rtcSocket,
+    rtcPeers,
     activeTab === 'video' ? localMedia.stream : null,
-    user?.avatarUrl,
   );
 
   /* ── Propagate local mute/cam state to peers ── */
@@ -238,10 +240,29 @@ export function RoomPage() {
       socket.emit('join-room', { roomId: id, idToken });
     });
 
-    socket.on('room:joined', () => setConnected(true));
+    socket.on('room:joined', ({ participants: peers }: {
+      socketId: string;
+      participants: PeerInfo[];
+    }) => {
+      setConnected(true);
+      setRtcSocket(socket);
+      setRtcPeers(peers.map(p => ({
+        socketId: p.socketId,
+        username: p.username,
+        audioEnabled: p.audioEnabled ?? true,
+        videoEnabled: p.videoEnabled ?? true,
+      })));
+    });
+
     socket.on('room:message', (msg: ChatMessage) => addMessage(msg));
-    socket.on('room:user-joined', () => setOnlineCount(c => c + 1));
-    socket.on('room:user-left', () => setOnlineCount(c => Math.max(1, c - 1)));
+    socket.on('room:user-joined', ({ socketId, username }: { socketId: string; username: string }) => {
+      setOnlineCount(c => c + 1);
+      setRtcPeers(prev => [...prev, { socketId, username, audioEnabled: true, videoEnabled: true }]);
+    });
+    socket.on('room:user-left', ({ socketId }: { socketId: string }) => {
+      setOnlineCount(c => Math.max(1, c - 1));
+      setRtcPeers(prev => prev.filter(p => p.socketId !== socketId));
+    });
 
     socket.connect();
 
@@ -249,6 +270,8 @@ export function RoomPage() {
       socket.emit('leave-room');
       socket.disconnect();
       socketRef.current = null;
+      setRtcSocket(null);
+      setRtcPeers([]);
     };
   }, [id, addMessage]);
 

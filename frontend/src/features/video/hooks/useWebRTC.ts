@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Socket } from 'socket.io-client';
+import { auth } from '../../../lib/firebase';
 
 export interface RemoteParticipant {
-  userId: string;
+  userId: string; // socketId of the remote peer
   username: string;
   avatarUrl?: string;
   stream: MediaStream | null;
@@ -9,14 +11,11 @@ export interface RemoteParticipant {
   videoEnabled: boolean;
 }
 
-interface SignalMessage {
-  roomId: string;
-  from: string;
-  to: string;
+export interface PeerInfo {
+  socketId: string;
   username: string;
-  avatarUrl?: string;
-  type: 'announce' | 'leave' | 'offer' | 'answer' | 'ice' | 'media-state';
-  payload?: unknown;
+  audioEnabled: boolean;
+  videoEnabled: boolean;
 }
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -25,44 +24,39 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 
 /**
- * P2P video/audio via WebRTC, signaled through BroadcastChannel.
- * Works across same-origin browser tabs/windows with no backend changes.
+ * P2P video/audio via WebRTC, signaled through the backend Socket.io gateway.
+ * socket and currentPeers come from RoomPage (shared socket — no duplicate join-room).
  */
 export function useWebRTC(
-  roomId: string,
-  userId: string,
-  username: string,
+  socket: Socket | null,
+  currentPeers: PeerInfo[],
   localStream: MediaStream | null,
-  avatarUrl?: string,
-) {
+): {
+  participants: RemoteParticipant[];
+  broadcastMediaState: (audioEnabled: boolean, videoEnabled: boolean) => Promise<void>;
+} {
   const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
-  const channelRef = useRef<BroadcastChannel | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const currentPeersRef = useRef<PeerInfo[]>(currentPeers);
 
-  const broadcastMediaState = useCallback((audioEnabled: boolean, videoEnabled: boolean) => {
-    channelRef.current?.postMessage({
-      roomId,
-      from: userId,
-      to: 'broadcast',
-      username,
-      avatarUrl,
-      type: 'media-state',
-      payload: { audioEnabled, videoEnabled },
-    } satisfies SignalMessage);
-  }, [roomId, userId, username, avatarUrl]);
+  useEffect(() => { currentPeersRef.current = currentPeers; }, [currentPeers]);
+  useEffect(() => { socketRef.current = socket; }, [socket]);
+
+  const broadcastMediaState = useCallback(async (audioEnabled: boolean, videoEnabled: boolean) => {
+    if (!socketRef.current) return;
+    const idToken = await auth.currentUser?.getIdToken();
+    socketRef.current.emit('webrtc:media-state', { idToken, audioEnabled, videoEnabled });
+  }, []);
 
   useEffect(() => {
-    if (!localStream) return;
+    if (!socket || !localStream) {
+      setParticipants([]);
+      return;
+    }
 
-    const channel = new BroadcastChannel(`studysphere:video:${roomId}`);
-    channelRef.current = channel;
-
-    const stream = localStream; // non-null (effect guard ensures this)
+    const stream = localStream;
     const peers = new Map<string, RTCPeerConnection>();
     const pendingIce = new Map<string, RTCIceCandidateInit[]>();
-
-    function send(msg: Omit<SignalMessage, 'roomId' | 'from' | 'username' | 'avatarUrl'>) {
-      channel.postMessage({ ...msg, roomId, from: userId, username, avatarUrl } satisfies SignalMessage);
-    }
 
     function upsertParticipant(update: Partial<RemoteParticipant> & { userId: string }) {
       setParticipants(prev => {
@@ -74,15 +68,19 @@ export function useWebRTC(
       });
     }
 
-    function createPeer(peerId: string, peerUsername: string, isInitiator: boolean): RTCPeerConnection {
-      const existing = peers.get(peerId);
+    async function getIdToken() {
+      return (await auth.currentUser?.getIdToken()) ?? '';
+    }
+
+    function createPeer(socketId: string, peerUsername: string): RTCPeerConnection {
+      const existing = peers.get(socketId);
       if (existing && existing.connectionState !== 'closed' && existing.connectionState !== 'failed') {
         return existing;
       }
       existing?.close();
 
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      peers.set(peerId, pc);
+      peers.set(socketId, pc);
 
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
@@ -93,105 +91,124 @@ export function useWebRTC(
           if (old) remoteStream.removeTrack(old);
           remoteStream.addTrack(t);
         });
-        upsertParticipant({ userId: peerId, username: peerUsername, stream: remoteStream });
+        upsertParticipant({ userId: socketId, stream: remoteStream });
       };
 
-      pc.onicecandidate = (e) => {
-        if (e.candidate) send({ type: 'ice', to: peerId, payload: e.candidate.toJSON() });
+      pc.onicecandidate = async (e) => {
+        if (e.candidate) {
+          const idToken = await getIdToken();
+          socket.emit('webrtc:ice-candidate', {
+            targetSocketId: socketId,
+            candidate: e.candidate.toJSON(),
+            idToken,
+          });
+        }
       };
 
       pc.onconnectionstatechange = () => {
         if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-          peers.delete(peerId);
-          setParticipants(prev => prev.filter(p => p.userId !== peerId));
+          peers.delete(socketId);
+          setParticipants(prev => prev.filter(p => p.userId !== socketId));
         }
       };
 
-      upsertParticipant({ userId: peerId, username: peerUsername, stream: null });
-
-      if (isInitiator) {
-        pc.createOffer()
-          .then(o => pc.setLocalDescription(o))
-          .then(() => send({ type: 'offer', to: peerId, payload: pc.localDescription!.toJSON() }))
-          .catch(() => {});
-      }
-
-      // Flush any queued ICE candidates
-      (pendingIce.get(peerId) ?? []).forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)));
-      pendingIce.delete(peerId);
+      // Flush any ICE candidates that arrived before the peer connection was ready
+      (pendingIce.get(socketId) ?? []).forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)));
+      pendingIce.delete(socketId);
 
       return pc;
     }
 
-    channel.onmessage = async (event: MessageEvent<SignalMessage>) => {
-      const msg = event.data;
-      if (msg.from === userId || msg.roomId !== roomId) return;
-      if (msg.to !== 'broadcast' && msg.to !== userId) return;
-
-      switch (msg.type) {
-        case 'announce': {
-          // Always store avatar/username even if peer already exists
-          upsertParticipant({ userId: msg.from, username: msg.username, avatarUrl: msg.avatarUrl });
-          if (!peers.has(msg.from)) {
-            createPeer(msg.from, msg.username, userId > msg.from);
-          }
-          if (msg.to === 'broadcast') {
-            send({ type: 'announce', to: msg.from });
-          }
-          break;
-        }
-        case 'offer': {
-          const pc = createPeer(msg.from, msg.username, false);
-          if (pc.signalingState !== 'stable') break; // ignore glare
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.payload as RTCSessionDescriptionInit));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          send({ type: 'answer', to: msg.from, payload: pc.localDescription!.toJSON() });
-          break;
-        }
-        case 'answer': {
-          const pc = peers.get(msg.from);
-          if (pc?.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(msg.payload as RTCSessionDescriptionInit));
-          }
-          break;
-        }
-        case 'ice': {
-          const pc = peers.get(msg.from);
-          const c = msg.payload as RTCIceCandidateInit;
-          if (pc?.remoteDescription) {
-            await pc.addIceCandidate(new RTCIceCandidate(c));
-          } else {
-            const arr = pendingIce.get(msg.from) ?? [];
-            arr.push(c);
-            pendingIce.set(msg.from, arr);
-          }
-          break;
-        }
-        case 'leave': {
-          peers.get(msg.from)?.close();
-          peers.delete(msg.from);
-          setParticipants(prev => prev.filter(p => p.userId !== msg.from));
-          break;
-        }
-        case 'media-state': {
-          const s = msg.payload as { audioEnabled: boolean; videoEnabled: boolean };
-          upsertParticipant({ userId: msg.from, ...s });
-          break;
-        }
+    async function sendOffer(socketId: string, peerUsername: string) {
+      upsertParticipant({ userId: socketId, username: peerUsername });
+      const pc = createPeer(socketId, peerUsername);
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        const idToken = await getIdToken();
+        socket.emit('webrtc:offer', {
+          targetSocketId: socketId,
+          sdp: pc.localDescription!.toJSON(),
+          idToken,
+        });
+      } catch {
+        // peer may have disconnected before offer completed
       }
-    };
+    }
 
-    send({ type: 'announce', to: 'broadcast' });
+    function onUserJoined({ socketId, username }: { socketId: string; username: string }) {
+      // They will send us an offer; just add them to the list so the grid shows them
+      upsertParticipant({ userId: socketId, username });
+    }
+
+    function onUserLeft({ socketId }: { socketId: string }) {
+      peers.get(socketId)?.close();
+      peers.delete(socketId);
+      setParticipants(prev => prev.filter(p => p.userId !== socketId));
+    }
+
+    async function onOffer({ fromSocketId, sdp }: { fromSocketId: string; sdp: RTCSessionDescriptionInit }) {
+      const pc = createPeer(fromSocketId, participants.find(p => p.userId === fromSocketId)?.username ?? '');
+      if (pc.signalingState !== 'stable') return;
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      const idToken = await getIdToken();
+      socket.emit('webrtc:answer', {
+        targetSocketId: fromSocketId,
+        sdp: pc.localDescription!.toJSON(),
+        idToken,
+      });
+    }
+
+    async function onAnswer({ fromSocketId, sdp }: { fromSocketId: string; sdp: RTCSessionDescriptionInit }) {
+      const pc = peers.get(fromSocketId);
+      if (pc?.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      }
+    }
+
+    async function onIce({ fromSocketId, candidate }: { fromSocketId: string; candidate: RTCIceCandidateInit }) {
+      const pc = peers.get(fromSocketId);
+      if (pc?.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } else {
+        const arr = pendingIce.get(fromSocketId) ?? [];
+        arr.push(candidate);
+        pendingIce.set(fromSocketId, arr);
+      }
+    }
+
+    function onMediaState({ socketId, username, audioEnabled, videoEnabled }: {
+      socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean;
+    }) {
+      upsertParticipant({ userId: socketId, username, audioEnabled, videoEnabled });
+    }
+
+    socket.on('room:user-joined', onUserJoined);
+    socket.on('room:user-left', onUserLeft);
+    socket.on('webrtc:offer', onOffer);
+    socket.on('webrtc:answer', onAnswer);
+    socket.on('webrtc:ice-candidate', onIce);
+    socket.on('webrtc:media-state', onMediaState);
+
+    // Send offers to all participants who were already in the room
+    for (const peer of currentPeersRef.current) {
+      sendOffer(peer.socketId, peer.username);
+    }
 
     return () => {
-      send({ type: 'leave', to: 'broadcast' });
-      channel.close();
-      channelRef.current = null;
+      socket.off('room:user-joined', onUserJoined);
+      socket.off('room:user-left', onUserLeft);
+      socket.off('webrtc:offer', onOffer);
+      socket.off('webrtc:answer', onAnswer);
+      socket.off('webrtc:ice-candidate', onIce);
+      socket.off('webrtc:media-state', onMediaState);
       peers.forEach(pc => pc.close());
       setParticipants([]);
     };
-  }, [roomId, userId, username, avatarUrl, localStream]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, localStream]);
 
   return { participants, broadcastMediaState };
 }
