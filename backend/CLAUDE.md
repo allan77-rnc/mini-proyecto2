@@ -136,6 +136,7 @@ Get service account credentials: Firebase Console → Project Settings → Servi
 | `webrtc:answer` | `{ targetSocketId, sdp, idToken }` | Relay SDP answer to a specific peer |
 | `webrtc:ice-candidate` | `{ targetSocketId, candidate, idToken }` | Relay ICE candidate to a specific peer |
 | `webrtc:media-state` | `{ idToken, audioEnabled, videoEnabled }` | Broadcast own mute/cam state to the room |
+| `webrtc:screen-share` | `{ idToken, isSharing }` | Broadcast screen share start/stop to the room |
 
 | Event (server→client) | Payload | Description |
 |---|---|---|
@@ -147,10 +148,11 @@ Get service account credentials: Firebase Console → Project Settings → Servi
 | `webrtc:answer` | `{ fromSocketId, sdp }` | Forwarded SDP answer from a peer |
 | `webrtc:ice-candidate` | `{ fromSocketId, candidate }` | Forwarded ICE candidate from a peer |
 | `webrtc:media-state` | `{ socketId, username, audioEnabled, videoEnabled }` | Peer's mute/cam state changed |
+| `webrtc:screen-share` | `{ socketId, username, isSharing }` | Peer started or stopped screen sharing |
 
 **`participants[]` shape** (inside `room:joined`):
 ```ts
-{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean }[]
+{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean; isScreenSharing: boolean }[]
 ```
 
 #### Frontend connection guide

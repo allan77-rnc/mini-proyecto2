@@ -99,7 +99,7 @@ Auth is passed per-event as `idToken` (Firebase ID token), not in the connection
 
 `participants[]` shape (inside `room:joined`):
 ```ts
-{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean }[]
+{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean; isScreenSharing: boolean }[]
 ```
 
 **WebRTC signaling** (server just relays — never touches media)
@@ -110,6 +110,7 @@ Auth is passed per-event as `idToken` (Firebase ID token), not in the connection
 | `webrtc:answer` | `{ targetSocketId, sdp, idToken }` | Send SDP answer to a specific peer |
 | `webrtc:ice-candidate` | `{ targetSocketId, candidate, idToken }` | Send ICE candidate to a specific peer |
 | `webrtc:media-state` | `{ idToken, audioEnabled, videoEnabled }` | Broadcast own mute/camera toggle |
+| `webrtc:screen-share` | `{ idToken, isSharing }` | Broadcast screen share start/stop |
 
 | Server → Client | Payload | Description |
 |---|---|---|
@@ -117,6 +118,7 @@ Auth is passed per-event as `idToken` (Firebase ID token), not in the connection
 | `webrtc:answer` | `{ fromSocketId, sdp }` | Forwarded SDP answer from a peer |
 | `webrtc:ice-candidate` | `{ fromSocketId, candidate }` | Forwarded ICE candidate from a peer |
 | `webrtc:media-state` | `{ socketId, username, audioEnabled, videoEnabled }` | Peer toggled mute/camera |
+| `webrtc:screen-share` | `{ socketId, username, isSharing }` | Peer started or stopped screen sharing |
 
 ---
 
@@ -351,7 +353,60 @@ socket.on('webrtc:media-state', ({ socketId, username, audioEnabled, videoEnable
 });
 ```
 
-#### 13. Send and receive chat messages
+#### 13. Screen sharing
+
+The frontend uses `getDisplayMedia()` + `sender.replaceTrack()` to swap the video track in the existing `RTCPeerConnection` — no renegotiation needed. The backend only needs to know about the state change to update other participants' UI.
+
+```ts
+let screenStream: MediaStream | null = null;
+
+async function startScreenShare() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+  } catch {
+    // User cancelled the picker or permission denied — do nothing, current stream is untouched
+    return;
+  }
+
+  const screenTrack = screenStream.getVideoTracks()[0];
+
+  // Replace the video track in every active peer connection
+  peers.forEach((pc) => {
+    const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (sender) sender.replaceTrack(screenTrack);
+  });
+
+  // Notify others via signaling server
+  const idToken = await getIdToken();
+  socket.emit('webrtc:screen-share', { idToken, isSharing: true });
+
+  // Auto-stop when the user clicks "Stop sharing" in the browser UI
+  screenTrack.onended = () => stopScreenShare();
+}
+
+async function stopScreenShare() {
+  screenStream?.getTracks().forEach((t) => t.stop());
+  screenStream = null;
+
+  // Restore the original camera track in every peer connection
+  const cameraTrack = localStream?.getVideoTracks()[0] ?? null;
+  peers.forEach((pc) => {
+    const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (sender) sender.replaceTrack(cameraTrack);
+  });
+
+  const idToken = await getIdToken();
+  socket.emit('webrtc:screen-share', { idToken, isSharing: false });
+}
+
+// Update other participants' UI when someone starts/stops sharing
+socket.on('webrtc:screen-share', ({ socketId, username, isSharing }) => {
+  updateParticipantCard(socketId, { isScreenSharing: isSharing });
+  console.log(username, isSharing ? 'started' : 'stopped', 'screen sharing');
+});
+```
+
+#### 14. Send and receive chat messages
 
 ```ts
 socket.on('room:message', (msg) => {
