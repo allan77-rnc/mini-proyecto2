@@ -22,6 +22,7 @@ interface PresenceEntry {
   roomId: string;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing: boolean;
 }
 
 interface JoinRoomPayload {
@@ -59,6 +60,11 @@ interface WebRtcMediaStatePayload {
   videoEnabled: boolean;
 }
 
+interface WebRtcScreenSharePayload {
+  idToken: string;
+  isSharing: boolean;
+}
+
 @WebSocketGateway({ namespace: '/rooms' })
 export class RoomsGateway implements OnGatewayDisconnect {
   @WebSocketServer() private readonly server!: Server;
@@ -93,6 +99,7 @@ export class RoomsGateway implements OnGatewayDisconnect {
       roomId: payload.roomId,
       audioEnabled: true,
       videoEnabled: true,
+      isScreenSharing: false,
     });
 
     // Send the joining client its own socket ID + existing participants list
@@ -207,6 +214,27 @@ export class RoomsGateway implements OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('webrtc:screen-share')
+  async handleWebRtcScreenShare(
+    @MessageBody() payload: WebRtcScreenSharePayload,
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    await this.verifyToken(payload.idToken);
+
+    const entry = this.presence.get(client.id);
+    if (!entry) throw new WsException('Not in a room');
+
+    entry.isScreenSharing = payload.isSharing;
+
+    client.to(entry.roomId).emit('webrtc:screen-share', {
+      socketId: client.id,
+      username: entry.username,
+      isSharing: payload.isSharing,
+    });
+
+    this.logger.log(`${entry.username} screen share: ${payload.isSharing}`);
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
   async handleDisconnect(client: Socket): Promise<void> {
@@ -231,8 +259,8 @@ export class RoomsGateway implements OnGatewayDisconnect {
 
   private getParticipants(
     roomId: string,
-  ): Array<{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean }> {
-    const result: Array<{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean }> = [];
+  ): Array<{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean; isScreenSharing: boolean }> {
+    const result: Array<{ socketId: string; username: string; audioEnabled: boolean; videoEnabled: boolean; isScreenSharing: boolean }> = [];
     for (const [socketId, entry] of this.presence.entries()) {
       if (entry.roomId === roomId) {
         result.push({
@@ -240,6 +268,7 @@ export class RoomsGateway implements OnGatewayDisconnect {
           username: entry.username,
           audioEnabled: entry.audioEnabled,
           videoEnabled: entry.videoEnabled,
+          isScreenSharing: entry.isScreenSharing,
         });
       }
     }
