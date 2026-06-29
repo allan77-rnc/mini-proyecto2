@@ -12,7 +12,10 @@ export const envValidationSchema = Joi.object({
   FIREBASE_CLIENT_EMAIL: Joi.string().email().required(),
   FIREBASE_PRIVATE_KEY: Joi.string().required(),
   FIREBASE_WEB_API_KEY: Joi.string().required(),
-  // TURN server for WebRTC (optional — STUN-only fallback when absent)
+  // Metered.ca TURN — preferred when set (backend fetches fresh credentials from their API)
+  METERED_API_KEY: Joi.string().optional(),
+  METERED_DOMAIN: Joi.string().optional(),
+  // Static TURN fallback (used only when Metered is not configured)
   TURN_URLS: Joi.string().optional(),
   TURN_USERNAME: Joi.string().optional(),
   TURN_CREDENTIAL: Joi.string().optional(),
