@@ -24,15 +24,11 @@ const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined) ?? 'openr
 const TURN_USER = (import.meta.env.VITE_TURN_USERNAME as string | undefined) ?? 'openrelayproject';
 const TURN_CRED = (import.meta.env.VITE_TURN_CREDENTIAL as string | undefined) ?? 'openrelayproject';
 
+// 3 URLs total — browser warns at 5+
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
   {
-    urls: [
-      `turn:${TURN_URL}:80`,
-      `turn:${TURN_URL}:443`,
-      `turns:${TURN_URL}:443`,
-    ],
+    urls: [`turn:${TURN_URL}:443`, `turns:${TURN_URL}:443`],
     username: TURN_USER,
     credential: TURN_CRED,
   },
@@ -59,6 +55,7 @@ export function useWebRTC(
   const localStreamRef = useRef<MediaStream | null>(localStream);
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const isScreenSharingRef = useRef(false);
 
   useEffect(() => { currentPeersRef.current = currentPeers; }, [currentPeers]);
   useEffect(() => { socketRef.current = socket; }, [socket]);
@@ -73,6 +70,7 @@ export function useWebRTC(
   const stopScreenShare = useCallback(async () => {
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current = null;
+    isScreenSharingRef.current = false;
 
     const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
     peersRef.current.forEach(pc => {
@@ -99,6 +97,7 @@ export function useWebRTC(
     }
 
     screenStreamRef.current = captureStream;
+    isScreenSharingRef.current = true;
     const screenTrack = captureStream.getVideoTracks()[0];
 
     peersRef.current.forEach(pc => {
@@ -127,9 +126,10 @@ export function useWebRTC(
     const s = socket;
     const stream = localStream;
     const peers = peersRef.current;
+
+    // candidatos ICE que llegan antes de que haya remoteDescription
     const pendingIce = new Map<string, RTCIceCandidateInit[]>();
 
-    // Close any stale connections from a previous effect run
     peers.forEach(pc => pc.close());
     peers.clear();
 
@@ -147,6 +147,14 @@ export function useWebRTC(
       return (await auth.currentUser?.getIdToken()) ?? '';
     }
 
+    // Vaciar candidatos pendientes DESPUÉS de setRemoteDescription
+    async function flushPendingIce(socketId: string, pc: RTCPeerConnection) {
+      const pending = pendingIce.get(socketId);
+      if (!pending?.length) return;
+      pendingIce.delete(socketId);
+      await Promise.allSettled(pending.map(c => pc.addIceCandidate(new RTCIceCandidate(c))));
+    }
+
     function createPeer(socketId: string, peerUsername: string): RTCPeerConnection {
       const existing = peers.get(socketId);
       if (existing && existing.connectionState !== 'closed' && existing.connectionState !== 'failed') {
@@ -157,7 +165,15 @@ export function useWebRTC(
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       peers.set(socketId, pc);
 
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      // Si estamos compartiendo pantalla, el nuevo peer recibe esa pista en lugar de la cámara
+      stream.getTracks().forEach(t => {
+        if (t.kind === 'video' && screenStreamRef.current) {
+          const screenTrack = screenStreamRef.current.getVideoTracks()[0];
+          pc.addTrack(screenTrack ?? t, stream);
+        } else {
+          pc.addTrack(t, stream);
+        }
+      });
 
       const remoteStream = new MediaStream();
       pc.ontrack = (e) => {
@@ -187,9 +203,7 @@ export function useWebRTC(
         }
       };
 
-      (pendingIce.get(socketId) ?? []).forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)));
-      pendingIce.delete(socketId);
-
+      // NO vaciamos pendingIce aquí — se hace tras setRemoteDescription
       return pc;
     }
 
@@ -206,12 +220,18 @@ export function useWebRTC(
           idToken,
         });
       } catch {
-        // peer may have disconnected before offer completed
+        // el peer se desconectó antes de terminar el offer
       }
     }
 
     function onUserJoined({ socketId, username }: { socketId: string; username: string }) {
       upsertParticipant({ userId: socketId, username });
+      // Si estamos compartiendo pantalla, avisar al recién llegado
+      if (isScreenSharingRef.current) {
+        getIdToken().then(idToken => {
+          s.emit('webrtc:screen-share', { idToken, isSharing: true });
+        });
+      }
     }
 
     function onUserLeft({ socketId }: { socketId: string }) {
@@ -224,6 +244,8 @@ export function useWebRTC(
       const pc = createPeer(fromSocketId, '');
       if (pc.signalingState !== 'stable') return;
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      // Vaciar candidatos que llegaron mientras no había remoteDescription
+      await flushPendingIce(fromSocketId, pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       const idToken = await getIdToken();
@@ -238,6 +260,7 @@ export function useWebRTC(
       const pc = peers.get(fromSocketId);
       if (pc?.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushPendingIce(fromSocketId, pc);
       }
     }
 
@@ -246,6 +269,7 @@ export function useWebRTC(
       if (pc?.remoteDescription) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } else {
+        // Todavía no hay remoteDescription — guardar para después
         const arr = pendingIce.get(fromSocketId) ?? [];
         arr.push(candidate);
         pendingIce.set(fromSocketId, arr);
