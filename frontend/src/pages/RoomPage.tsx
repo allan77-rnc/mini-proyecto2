@@ -4,13 +4,14 @@ import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
+import { getAvatarByUsername } from '../lib/userAvatars';
 import type { Room, ChatMessage } from '../types/room';
 import {
   IconBookOpen, IconUsers, IconMessageSquare, IconUserPlus,
   IconPencil, IconTrash, IconSend, IconSpinner, IconAlertTriangle,
   IconMoreVertical, IconCopy, IconX, IconCheckCircle,
   IconFolder, IconNote, IconHelp, IconLogOut, IconVideo,
-  IconChevronLeft, IconChevronRight, IconClock,
+  IconChevronLeft, IconChevronRight, IconClock, IconMonitor,
 } from '../components/icons';
 import {
   useLocalMedia, useWebRTC, useAudioLevel,
@@ -129,6 +130,39 @@ function DeleteRoomModal({ room, onClose, onDeleted }: {
   );
 }
 
+/* ─── PresentationArea ───────────────────────────────────────────── */
+function PresentationArea({ stream, presenterName }: { stream: MediaStream | null; presenterName: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#0d1117]">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className={`w-full h-full object-contain transition-opacity duration-200 ${stream ? 'opacity-100' : 'opacity-0'}`}
+      />
+      {!stream && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 select-none">
+          <div className="w-16 h-16 rounded-2xl bg-[#1e2535] flex items-center justify-center">
+            <IconMonitor size={28} className="text-gray-500" />
+          </div>
+          <p className="text-gray-300 font-semibold text-base">{presenterName} está compartiendo pantalla</p>
+          <p className="text-gray-500 text-sm">Esperando que cargue la presentación...</p>
+        </div>
+      )}
+      <div className="absolute top-3 left-3">
+        <span className="flex items-center gap-1.5 bg-teal-500/90 text-white text-xs px-2.5 py-1.5 rounded-xl font-semibold backdrop-blur-sm">
+          <IconMonitor size={12} /> {presenterName} — Compartiendo pantalla
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ─── RoomPage ────────────────────────────────────────────────────── */
 export function RoomPage() {
   const { id } = useParams<{ id: string }>();
@@ -162,6 +196,7 @@ export function RoomPage() {
 
   const [rtcSocket, setRtcSocket] = useState<Socket | null>(null);
   const [rtcPeers, setRtcPeers] = useState<PeerInfo[]>([]);
+  const [avatarByUsername, setAvatarByUsername] = useState<Record<string, string>>({});
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -169,10 +204,10 @@ export function RoomPage() {
   const isHost = !!room && !!user && room.hostUid === user.uid;
 
   /* ── Local media (camera + mic) — only acquired while on Video tab ── */
-  const localMedia = useLocalMedia(activeTab === 'video');
+  const localMedia = useLocalMedia(true);
 
   /* ── WebRTC P2P (shared socket — no duplicate join-room) ── */
-  const { participants, broadcastMediaState } = useWebRTC(
+  const { participants, isScreenSharing, screenStream, broadcastMediaState, startScreenShare, stopScreenShare } = useWebRTC(
     rtcSocket,
     rtcPeers,
     activeTab === 'video' ? localMedia.stream : null,
@@ -198,6 +233,21 @@ export function RoomPage() {
     activeTab === 'video' ? localMedia.stream : null,
     localMedia.audioEnabled,
   );
+
+  /* ── Pre-fetch avatars for all chat senders (history + new messages) ── */
+  useEffect(() => {
+    const seen = new Set<string>();
+    messages.forEach(m => {
+      if (!m.senderUsername) return;
+      const key = m.senderUsername.toLowerCase();
+      if (!seen.has(key) && !avatarByUsername[key]) {
+        seen.add(key);
+        getAvatarByUsername(m.senderUsername).then(url => {
+          if (url) setAvatarByUsername(prev => ({ ...prev, [key]: url }));
+        });
+      }
+    });
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Scroll to bottom on new messages ── */
   useEffect(() => {
@@ -251,17 +301,28 @@ export function RoomPage() {
         username: p.username,
         audioEnabled: p.audioEnabled ?? true,
         videoEnabled: p.videoEnabled ?? true,
+        isScreenSharing: p.isScreenSharing ?? false,
       })));
+      // Fetch avatars for all current participants
+      peers.forEach(p => {
+        getAvatarByUsername(p.username).then(url => {
+          if (url) setAvatarByUsername(prev => ({ ...prev, [p.username.toLowerCase()]: url }));
+        });
+      });
     });
 
     socket.on('room:message', (msg: ChatMessage) => addMessage(msg));
     socket.on('room:user-joined', ({ socketId, username }: { socketId: string; username: string }) => {
       setOnlineCount(c => c + 1);
-      setRtcPeers(prev => [...prev, { socketId, username, audioEnabled: true, videoEnabled: true }]);
+      setRtcPeers(prev => [...prev, { socketId, username, audioEnabled: true, videoEnabled: true, isScreenSharing: false }]);
+      getAvatarByUsername(username).then(url => {
+        if (url) setAvatarByUsername(prev => ({ ...prev, [username.toLowerCase()]: url }));
+      });
     });
     socket.on('room:user-left', ({ socketId }: { socketId: string }) => {
       setOnlineCount(c => Math.max(1, c - 1));
       setRtcPeers(prev => prev.filter(p => p.socketId !== socketId));
+      // No borrar avatarByUsername al salir — el cache por username sigue siendo válido
     });
 
     socket.connect();
@@ -509,69 +570,106 @@ export function RoomPage() {
 
                 {/* ── Video section ── */}
                 <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                  {participants.length === 0 ? (
-                    /* Solo layout: local tile left, waiting placeholder right */
-                    <div className="flex flex-1 min-h-0 gap-2 p-2">
-                      <div className="w-52 flex-shrink-0">
-                        <VideoTile
-                          stream={localMedia.stream}
-                          username={user?.username ?? user?.firstName ?? 'Tú'}
-                          avatarUrl={user?.avatarUrl}
-                          isLocal
-                          audioEnabled={localMedia.audioEnabled}
-                          videoEnabled={localMedia.videoEnabled}
-                          isSpeaking={audioLevel > 0.05}
+                  {(() => {
+                    const localName = user?.username ?? user?.firstName ?? 'Tú';
+                    const sharingPeer = participants.find(p => p.isScreenSharing);
+                    const presentationMode = isScreenSharing || !!sharingPeer;
+                    const presentationStream = isScreenSharing ? screenStream : (sharingPeer?.stream ?? null);
+                    const presenterName = isScreenSharing ? localName : (sharingPeer?.username ?? '');
+
+                    const localTile = (
+                      <VideoTile
+                        stream={localMedia.stream}
+                        username={localName}
+                        avatarUrl={user?.avatarUrl}
+                        isLocal
+                        audioEnabled={localMedia.audioEnabled}
+                        videoEnabled={localMedia.videoEnabled}
+                        isScreenSharing={isScreenSharing}
+                        isSpeaking={audioLevel > 0.05}
+                      />
+                    );
+
+                    if (presentationMode) {
+                      /* ── Presentation layout ── */
+                      const thumbTiles = [
+                        { id: user?.uid ?? 'local', node: localTile },
+                        ...participants.map(p => ({
+                          id: p.userId,
+                          node: (
+                            <VideoTile
+                              stream={p.stream}
+                              username={p.username}
+                              avatarUrl={avatarByUsername[p.username.toLowerCase()]}
+                              audioEnabled={p.audioEnabled}
+                              videoEnabled={p.videoEnabled}
+                              isScreenSharing={p.isScreenSharing}
+                            />
+                          ),
+                        })),
+                      ];
+                      return (
+                        <div className="flex-1 min-h-0 flex flex-col">
+                          {/* Thumbnail strip */}
+                          <div className="flex gap-2 px-2 pt-2 flex-shrink-0 h-32 overflow-x-auto">
+                            {thumbTiles.map(t => (
+                              <div key={t.id} className="w-44 flex-shrink-0 h-full">{t.node}</div>
+                            ))}
+                          </div>
+                          {/* Large screen share area */}
+                          <div className="flex-1 min-h-0 p-2">
+                            <PresentationArea stream={presentationStream} presenterName={presenterName} />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (participants.length === 0) {
+                      /* ── Solo: local tile + waiting placeholder ── */
+                      return (
+                        <div className="flex flex-1 min-h-0 gap-2 p-2">
+                          <div className="w-1/4 min-w-[160px] max-w-xs flex-shrink-0">{localTile}</div>
+                          <div className="flex-1 rounded-2xl bg-[#131720] flex flex-col items-center justify-center gap-4 select-none">
+                            <div className="w-14 h-14 rounded-2xl bg-[#1e2535] flex items-center justify-center">
+                              <IconClock size={26} className="text-gray-500" />
+                            </div>
+                            <div className="text-center px-6">
+                              <p className="font-semibold text-gray-300">Esperando participantes...</p>
+                              <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                                Comparte el ID de la sala{' '}
+                                <span className="font-bold text-gray-300">{id}</span>{' '}
+                                para que otros se unan a la sesión de estudio.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    /* ── Adaptive grid (max 3 tiles) ── */
+                    return (
+                      <div className="flex-1 min-h-0">
+                        <VideoGrid
+                          tiles={[
+                            { id: user?.uid ?? 'local', node: localTile },
+                            ...participants.slice(0, 2).map(p => ({
+                              id: p.userId,
+                              node: (
+                                <VideoTile
+                                  stream={p.stream}
+                                  username={p.username}
+                                  avatarUrl={avatarByUsername[p.username.toLowerCase()]}
+                                  audioEnabled={p.audioEnabled}
+                                  videoEnabled={p.videoEnabled}
+                                  isScreenSharing={p.isScreenSharing}
+                                />
+                              ),
+                            })),
+                          ]}
                         />
                       </div>
-                      <div className="flex-1 rounded-2xl bg-[#131720] flex flex-col items-center justify-center gap-4 select-none">
-                        <div className="w-14 h-14 rounded-2xl bg-[#1e2535] flex items-center justify-center">
-                          <IconClock size={26} className="text-gray-500" />
-                        </div>
-                        <div className="text-center px-6">
-                          <p className="font-semibold text-gray-300">Esperando participantes...</p>
-                          <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-                            Comparte el ID de la sala{' '}
-                            <span className="font-bold text-gray-300">{id}</span>{' '}
-                            para que otros se unan a la sesión de estudio.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Multi-participant grid */
-                    <div className="flex-1 min-h-0">
-                      <VideoGrid
-                        tiles={[
-                          {
-                            id: user?.uid ?? 'local',
-                            node: (
-                              <VideoTile
-                                stream={localMedia.stream}
-                                username={user?.username ?? user?.firstName ?? 'Tú'}
-                                avatarUrl={user?.avatarUrl}
-                                isLocal
-                                audioEnabled={localMedia.audioEnabled}
-                                videoEnabled={localMedia.videoEnabled}
-                                isSpeaking={audioLevel > 0.05}
-                              />
-                            ),
-                          },
-                          ...participants.map(p => ({
-                            id: p.userId,
-                            node: (
-                              <VideoTile
-                                stream={p.stream}
-                                username={p.username}
-                                avatarUrl={p.avatarUrl}
-                                audioEnabled={p.audioEnabled}
-                                videoEnabled={p.videoEnabled}
-                              />
-                            ),
-                          })),
-                        ]}
-                      />
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* ── Chat panel ── */}
@@ -598,7 +696,7 @@ export function RoomPage() {
                         const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
                         const msgAvatar = isOwn
                           ? user?.avatarUrl
-                          : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
+                          : avatarByUsername[msg.senderUsername?.toLowerCase() ?? ''];
                         return (
                           <div key={msg.id} className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
                             {msgAvatar ? (
@@ -651,18 +749,20 @@ export function RoomPage() {
             )}
 
             {/* Dark pill control bar */}
-            {!localMedia.error && (
-              <MediaControls
-                audioEnabled={localMedia.audioEnabled}
-                videoEnabled={localMedia.videoEnabled}
-                chatOpen={chatPanelOpen}
-                audioLevel={audioLevel}
-                onToggleAudio={localMedia.toggleAudio}
-                onToggleVideo={localMedia.toggleVideo}
-                onToggleChat={() => setChatPanelOpen(v => !v)}
-                onLeave={() => navigate('/dashboard')}
-              />
-            )}
+            <MediaControls
+              audioEnabled={localMedia.audioEnabled}
+              videoEnabled={localMedia.videoEnabled}
+              chatOpen={chatPanelOpen}
+              audioLevel={audioLevel}
+              isScreenSharing={isScreenSharing}
+              permissionError={localMedia.error}
+              onToggleAudio={localMedia.toggleAudio}
+              onToggleVideo={localMedia.toggleVideo}
+              onToggleChat={() => setChatPanelOpen(v => !v)}
+              onToggleScreenShare={isScreenSharing ? stopScreenShare : startScreenShare}
+              onRetry={localMedia.retry}
+              onLeave={() => navigate('/dashboard')}
+            />
           </>
         )}
 
@@ -733,7 +833,7 @@ export function RoomPage() {
                 const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
                 const msgAvatar = isOwn
                   ? user?.avatarUrl
-                  : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
+                  : avatarByUsername[msg.senderUsername?.toLowerCase() ?? ''];
 
                 return (
                   <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
