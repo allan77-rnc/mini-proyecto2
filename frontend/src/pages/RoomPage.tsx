@@ -204,7 +204,7 @@ export function RoomPage() {
   const isHost = !!room && !!user && room.hostUid === user.uid;
 
   /* ── Local media (camera + mic) — only acquired while on Video tab ── */
-  const localMedia = useLocalMedia(activeTab === 'video');
+  const localMedia = useLocalMedia(true);
 
   /* ── WebRTC P2P (shared socket — no duplicate join-room) ── */
   const { participants, isScreenSharing, screenStream, broadcastMediaState, startScreenShare, stopScreenShare } = useWebRTC(
@@ -749,20 +749,20 @@ export function RoomPage() {
             )}
 
             {/* Dark pill control bar */}
-            {!localMedia.error && (
-              <MediaControls
-                audioEnabled={localMedia.audioEnabled}
-                videoEnabled={localMedia.videoEnabled}
-                chatOpen={chatPanelOpen}
-                audioLevel={audioLevel}
-                isScreenSharing={isScreenSharing}
-                onToggleAudio={localMedia.toggleAudio}
-                onToggleVideo={localMedia.toggleVideo}
-                onToggleChat={() => setChatPanelOpen(v => !v)}
-                onToggleScreenShare={isScreenSharing ? stopScreenShare : startScreenShare}
-                onLeave={() => navigate('/dashboard')}
-              />
-            )}
+            <MediaControls
+              audioEnabled={localMedia.audioEnabled}
+              videoEnabled={localMedia.videoEnabled}
+              chatOpen={chatPanelOpen}
+              audioLevel={audioLevel}
+              isScreenSharing={isScreenSharing}
+              permissionError={localMedia.error}
+              onToggleAudio={localMedia.toggleAudio}
+              onToggleVideo={localMedia.toggleVideo}
+              onToggleChat={() => setChatPanelOpen(v => !v)}
+              onToggleScreenShare={isScreenSharing ? stopScreenShare : startScreenShare}
+              onRetry={localMedia.retry}
+              onLeave={() => navigate('/dashboard')}
+            />
           </>
         )}
 
