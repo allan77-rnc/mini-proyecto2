@@ -31,7 +31,7 @@ export function VideoTile({
   }, [stream]);
 
   const initials = username.slice(0, 2).toUpperCase();
-  const showVideo = !!stream && (videoEnabled || isScreenSharing);
+  const showVideo = !!stream && videoEnabled;
 
   return (
     <div
@@ -69,18 +69,10 @@ export function VideoTile({
         </div>
       )}
 
-      {/* Screen share badge */}
-      {isScreenSharing && (
-        <div className="absolute top-2 left-2">
-          <span className="flex items-center gap-1 bg-teal-500/90 text-white text-[10px] px-2 py-1 rounded-lg font-semibold backdrop-blur-sm">
-            <IconMonitor size={11} /> Compartiendo pantalla
-          </span>
-        </div>
-      )}
-
-      {/* Name + mute badge */}
+      {/* Name + screen share indicator + mute badge */}
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-        <span className="bg-black/60 text-white text-xs px-2.5 py-1 rounded-lg font-medium backdrop-blur-sm leading-none">
+        <span className="bg-black/60 text-white text-xs px-2.5 py-1 rounded-lg font-medium backdrop-blur-sm leading-none flex items-center gap-1.5">
+          {isScreenSharing && <IconMonitor size={11} className="flex-shrink-0 text-teal-400" />}
           {username}{isLocal ? ' (Tú)' : ''}
         </span>
         {!audioEnabled && (

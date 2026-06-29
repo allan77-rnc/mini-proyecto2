@@ -4,6 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
+import { getAvatarByUsername } from '../lib/userAvatars';
 import type { Room, ChatMessage } from '../types/room';
 import {
   IconBookOpen, IconUsers, IconMessageSquare, IconUserPlus,
@@ -195,6 +196,7 @@ export function RoomPage() {
 
   const [rtcSocket, setRtcSocket] = useState<Socket | null>(null);
   const [rtcPeers, setRtcPeers] = useState<PeerInfo[]>([]);
+  const [avatarByUsername, setAvatarByUsername] = useState<Record<string, string>>({});
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -231,6 +233,21 @@ export function RoomPage() {
     activeTab === 'video' ? localMedia.stream : null,
     localMedia.audioEnabled,
   );
+
+  /* ── Pre-fetch avatars for all chat senders (history + new messages) ── */
+  useEffect(() => {
+    const seen = new Set<string>();
+    messages.forEach(m => {
+      if (!m.senderUsername) return;
+      const key = m.senderUsername.toLowerCase();
+      if (!seen.has(key) && !avatarByUsername[key]) {
+        seen.add(key);
+        getAvatarByUsername(m.senderUsername).then(url => {
+          if (url) setAvatarByUsername(prev => ({ ...prev, [key]: url }));
+        });
+      }
+    });
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Scroll to bottom on new messages ── */
   useEffect(() => {
@@ -286,16 +303,26 @@ export function RoomPage() {
         videoEnabled: p.videoEnabled ?? true,
         isScreenSharing: p.isScreenSharing ?? false,
       })));
+      // Fetch avatars for all current participants
+      peers.forEach(p => {
+        getAvatarByUsername(p.username).then(url => {
+          if (url) setAvatarByUsername(prev => ({ ...prev, [p.username.toLowerCase()]: url }));
+        });
+      });
     });
 
     socket.on('room:message', (msg: ChatMessage) => addMessage(msg));
     socket.on('room:user-joined', ({ socketId, username }: { socketId: string; username: string }) => {
       setOnlineCount(c => c + 1);
       setRtcPeers(prev => [...prev, { socketId, username, audioEnabled: true, videoEnabled: true, isScreenSharing: false }]);
+      getAvatarByUsername(username).then(url => {
+        if (url) setAvatarByUsername(prev => ({ ...prev, [username.toLowerCase()]: url }));
+      });
     });
     socket.on('room:user-left', ({ socketId }: { socketId: string }) => {
       setOnlineCount(c => Math.max(1, c - 1));
       setRtcPeers(prev => prev.filter(p => p.socketId !== socketId));
+      // No borrar avatarByUsername al salir — el cache por username sigue siendo válido
     });
 
     socket.connect();
@@ -573,7 +600,7 @@ export function RoomPage() {
                             <VideoTile
                               stream={p.stream}
                               username={p.username}
-                              avatarUrl={p.avatarUrl}
+                              avatarUrl={avatarByUsername[p.username.toLowerCase()]}
                               audioEnabled={p.audioEnabled}
                               videoEnabled={p.videoEnabled}
                               isScreenSharing={p.isScreenSharing}
@@ -601,7 +628,7 @@ export function RoomPage() {
                       /* ── Solo: local tile + waiting placeholder ── */
                       return (
                         <div className="flex flex-1 min-h-0 gap-2 p-2">
-                          <div className="w-52 flex-shrink-0">{localTile}</div>
+                          <div className="w-1/4 min-w-[160px] max-w-xs flex-shrink-0">{localTile}</div>
                           <div className="flex-1 rounded-2xl bg-[#131720] flex flex-col items-center justify-center gap-4 select-none">
                             <div className="w-14 h-14 rounded-2xl bg-[#1e2535] flex items-center justify-center">
                               <IconClock size={26} className="text-gray-500" />
@@ -631,7 +658,7 @@ export function RoomPage() {
                                 <VideoTile
                                   stream={p.stream}
                                   username={p.username}
-                                  avatarUrl={p.avatarUrl}
+                                  avatarUrl={avatarByUsername[p.username.toLowerCase()]}
                                   audioEnabled={p.audioEnabled}
                                   videoEnabled={p.videoEnabled}
                                   isScreenSharing={p.isScreenSharing}
@@ -669,7 +696,7 @@ export function RoomPage() {
                         const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
                         const msgAvatar = isOwn
                           ? user?.avatarUrl
-                          : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
+                          : avatarByUsername[msg.senderUsername?.toLowerCase() ?? ''];
                         return (
                           <div key={msg.id} className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
                             {msgAvatar ? (
@@ -806,7 +833,7 @@ export function RoomPage() {
                 const initial = msg.senderUsername?.[0]?.toUpperCase() ?? '?';
                 const msgAvatar = isOwn
                   ? user?.avatarUrl
-                  : participants.find(p => p.userId === msg.senderUid)?.avatarUrl;
+                  : avatarByUsername[msg.senderUsername?.toLowerCase() ?? ''];
 
                 return (
                   <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${sameAuthor ? 'mt-0.5' : 'mt-3'}`}>
