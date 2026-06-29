@@ -75,7 +75,24 @@ export class RoomsController {
   @ApiOperation({ summary: 'Get ICE server configuration for WebRTC (call before joining a room)' })
   @ApiOkResponse({ type: IceConfigResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
-  getIceConfig(): IceConfigResponse {
+  async getIceConfig(): Promise<IceConfigResponse> {
+    const meteredApiKey = process.env['METERED_API_KEY'];
+    const meteredDomain = process.env['METERED_DOMAIN'];
+
+    if (meteredApiKey && meteredDomain) {
+      try {
+        const url = `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${meteredApiKey}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const iceServers = await res.json() as IceServerDto[];
+          return { iceServers };
+        }
+      } catch {
+        // Fall through to STUN-only fallback
+      }
+    }
+
+    // Fallback: STUN only (or static TURN via env vars)
     const iceServers: IceServerDto[] = [
       { urls: 'stun:stun.l.google.com:19302' },
     ];
