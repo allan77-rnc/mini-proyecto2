@@ -156,16 +156,29 @@ async function getIdToken(): Promise<string> {
 
 Each remote participant gets their own `RTCPeerConnection`. Keep a map keyed by `socketId`.
 
-```ts
-const ICE_SERVERS = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
+**Always fetch ICE servers from the backend endpoint** — never hardcode them. This avoids the "5+ STUN/TURN servers" browser warning and lets the backend add TURN credentials without a FE redeploy.
 
+```ts
 // Map<socketId, RTCPeerConnection>
 const peers = new Map<string, RTCPeerConnection>();
 
+// Map<socketId, queued ICE candidates> — needed to handle race condition
+// where candidates arrive before setRemoteDescription is called
+const pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
+
 // Your local camera/mic stream — set this before joining the room
 let localStream: MediaStream | null = null;
+
+// ICE config fetched from the backend (call once before joining)
+let iceConfig: RTCConfiguration = { iceServers: [] };
+
+async function fetchIceConfig(idToken: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/api/rooms/ice-config`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const data = await res.json() as { iceServers: RTCIceServer[] };
+  iceConfig = { iceServers: data.iceServers };
+}
 ```
 
 #### 4. Get local media (camera + microphone)
@@ -194,7 +207,8 @@ This helper creates the connection, attaches the local stream, and wires up all 
 
 ```ts
 function createPeerConnection(remoteSocketId: string): RTCPeerConnection {
-  const pc = new RTCPeerConnection(ICE_SERVERS);
+  // Use iceConfig fetched from the backend — never hardcode ICE servers
+  const pc = new RTCPeerConnection(iceConfig);
   peers.set(remoteSocketId, pc);
 
   // Add local tracks so the remote peer receives our stream
@@ -220,6 +234,26 @@ function createPeerConnection(remoteSocketId: string): RTCPeerConnection {
 
   return pc;
 }
+
+// setRemoteDescription + flush any ICE candidates that arrived early
+// IMPORTANT: always call this instead of pc.setRemoteDescription() directly.
+// ICE candidates can arrive before the offer/answer — if you call
+// addIceCandidate before setRemoteDescription the browser throws
+// "No remoteDescription". Queue them here and flush after SDP is set.
+async function applyRemoteDescription(
+  socketId: string,
+  sdp: RTCSessionDescriptionInit,
+): Promise<void> {
+  const pc = peers.get(socketId);
+  if (!pc) return;
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+  const queued = pendingCandidates.get(socketId) ?? [];
+  for (const candidate of queued) {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  }
+  pendingCandidates.delete(socketId);
+}
 ```
 
 #### 6. Join a room and start the P2P mesh
@@ -233,6 +267,12 @@ socket.on('connect', async () => {
   const idToken = await getIdToken();
   socket.emit('join-room', { roomId: '<room-uuid>', idToken });
 });
+
+// Fetch ICE config BEFORE connecting — do this once per session
+const idToken = await getIdToken();
+await fetchIceConfig(idToken);
+
+socket.connect();
 
 socket.on('room:joined', async ({ roomId, socketId: mySocketId, participants }) => {
   console.log('Joined room', roomId, '| my socketId:', mySocketId);
@@ -248,11 +288,11 @@ socket.on('room:joined', async ({ roomId, socketId: mySocketId, participants }) 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    const idToken = await getIdToken();
+    const token = await getIdToken();
     socket.emit('webrtc:offer', {
       targetSocketId: peer.socketId,
       sdp: offer,
-      idToken,
+      idToken: token,
     });
   }
 });
@@ -274,7 +314,9 @@ socket.on('room:user-joined', ({ socketId, username }) => {
 ```ts
 socket.on('webrtc:offer', async ({ fromSocketId, sdp }) => {
   const pc = createPeerConnection(fromSocketId);
-  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+  // Use applyRemoteDescription — flushes any ICE candidates that arrived early
+  await applyRemoteDescription(fromSocketId, sdp);
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -292,9 +334,8 @@ socket.on('webrtc:offer', async ({ fromSocketId, sdp }) => {
 
 ```ts
 socket.on('webrtc:answer', async ({ fromSocketId, sdp }) => {
-  const pc = peers.get(fromSocketId);
-  if (!pc) return;
-  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  // Use applyRemoteDescription — flushes any ICE candidates that arrived early
+  await applyRemoteDescription(fromSocketId, sdp);
 });
 ```
 
@@ -304,6 +345,15 @@ socket.on('webrtc:answer', async ({ fromSocketId, sdp }) => {
 socket.on('webrtc:ice-candidate', async ({ fromSocketId, candidate }) => {
   const pc = peers.get(fromSocketId);
   if (!pc) return;
+
+  if (!pc.remoteDescription) {
+    // SDP not set yet — queue the candidate to avoid "No remoteDescription" error
+    const q = pendingCandidates.get(fromSocketId) ?? [];
+    q.push(candidate);
+    pendingCandidates.set(fromSocketId, q);
+    return;
+  }
+
   await pc.addIceCandidate(new RTCIceCandidate(candidate));
 });
 ```
@@ -443,6 +493,8 @@ function leaveRoom() {
 - **Token expiry:** Firebase ID tokens expire after 1 hour. If the user has been idle, refresh before emitting: `await user.getIdToken(true)`
 - **Chat-only mode:** If `getUserMedia` throws (permissions denied), `localStream` will be `null`. The socket still connects and the user can send chat messages — `createPeerConnection` safely skips `addTrack` when `localStream` is null.
 - **Single room per socket:** A socket can only be in one room at a time. Call `leaveRoom()` before joining a different one.
-- **STUN only:** The default ICE config uses Google's public STUN server. For production behind symmetric NAT you will need a TURN server.
+- **ICE servers:** Always call `GET /api/rooms/ice-config` before creating any `RTCPeerConnection` — never hardcode ICE servers. 5+ servers trigger a browser warning and slow discovery. Add TURN credentials via `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` env vars on Render; the endpoint returns them automatically.
+- **TURN in production:** STUN alone fails when both peers are behind different symmetric NATs (common in mobile/corporate networks). If ICE fails in production, add a TURN server. Free options: [Metered.ca](https://www.metered.ca/turn-server) free tier. Add its URL and credentials to Render env vars.
+- **"No remoteDescription" error:** ICE candidates can arrive before the offer/answer SDP. Always use `applyRemoteDescription()` (which queues early candidates) instead of calling `pc.setRemoteDescription()` directly. See step 10 above.
 - **Render cold starts:** The free-tier backend sleeps after 15 min of inactivity and takes ~30 s to wake up. Do NOT use `transports: ['websocket']` — that fails immediately during cold start. Omit `transports` so Socket.io uses polling first (which tolerates the delay) and then auto-upgrades to WebSocket.
 - **CORS:** The backend only accepts WebSocket connections from origins listed in the `ALLOWED_ORIGINS` environment variable on Render. Make sure the deployed frontend URL is in that list.

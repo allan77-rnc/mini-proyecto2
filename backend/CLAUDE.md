@@ -118,6 +118,7 @@ Get service account credentials: Firebase Console → Project Settings → Servi
 ### Rooms (`/api/rooms`)
 | Method | Path | Auth | Description |
 |---|---|---|---|
+| GET | `/ice-config` | Bearer | Returns ICE server list (STUN + optional TURN from env vars) |
 | POST | `/` | Bearer | Create a new room |
 | GET | `/` | Bearer | List own rooms (hosted by current user) |
 | GET | `/:id` | Bearer | Get a room by ID |

@@ -28,6 +28,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { UsersService } from '../users/users.service';
 import { CreateRoomDto } from './dto/create-room.dto';
+import { IceConfigResponse, IceServerDto } from './dto/ice-config-response.dto';
 import { MessageResponse } from './dto/message-response.dto';
 import { RoomResponse } from './dto/room-response.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
@@ -69,6 +70,28 @@ export class RoomsController {
     private readonly roomsService: RoomsService,
     private readonly usersService: UsersService,
   ) {}
+
+  @Get('ice-config')
+  @ApiOperation({ summary: 'Get ICE server configuration for WebRTC (call before joining a room)' })
+  @ApiOkResponse({ type: IceConfigResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Firebase token' })
+  getIceConfig(): IceConfigResponse {
+    const iceServers: IceServerDto[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+    ];
+
+    const turnUrls = process.env['TURN_URLS'];
+    const turnUsername = process.env['TURN_USERNAME'];
+    const turnCredential = process.env['TURN_CREDENTIAL'];
+
+    if (turnUrls && turnUsername && turnCredential) {
+      for (const url of turnUrls.split(',').map((u) => u.trim()).filter(Boolean)) {
+        iceServers.push({ urls: url, username: turnUsername, credential: turnCredential });
+      }
+    }
+
+    return { iceServers };
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new study room' })
