@@ -12,4 +12,8 @@ export const envValidationSchema = Joi.object({
   FIREBASE_CLIENT_EMAIL: Joi.string().email().required(),
   FIREBASE_PRIVATE_KEY: Joi.string().required(),
   FIREBASE_WEB_API_KEY: Joi.string().required(),
+  // TURN server for WebRTC (optional — STUN-only fallback when absent)
+  TURN_URLS: Joi.string().optional(),
+  TURN_USERNAME: Joi.string().optional(),
+  TURN_CREDENTIAL: Joi.string().optional(),
 });

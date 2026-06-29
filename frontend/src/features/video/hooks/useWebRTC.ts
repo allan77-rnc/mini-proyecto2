@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import { auth } from '../../../lib/firebase';
+import { api } from '../../../lib/api';
 
 export interface RemoteParticipant {
   userId: string; // socketId of the remote peer
@@ -20,19 +21,7 @@ export interface PeerInfo {
   isScreenSharing: boolean;
 }
 
-const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined) ?? 'openrelay.metered.ca';
-const TURN_USER = (import.meta.env.VITE_TURN_USERNAME as string | undefined) ?? 'openrelayproject';
-const TURN_CRED = (import.meta.env.VITE_TURN_CREDENTIAL as string | undefined) ?? 'openrelayproject';
-
-// 3 URLs total — browser warns at 5+
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  {
-    urls: [`turn:${TURN_URL}:443`, `turns:${TURN_URL}:443`],
-    username: TURN_USER,
-    credential: TURN_CRED,
-  },
-];
+const FALLBACK_ICE: RTCConfiguration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 export function useWebRTC(
   socket: Socket | null,
@@ -56,6 +45,7 @@ export function useWebRTC(
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const screenStreamRef = useRef<MediaStream | null>(null);
   const isScreenSharingRef = useRef(false);
+  const iceConfigRef = useRef<RTCConfiguration | null>(null);
 
   useEffect(() => { currentPeersRef.current = currentPeers; }, [currentPeers]);
   useEffect(() => { socketRef.current = socket; }, [socket]);
@@ -162,7 +152,7 @@ export function useWebRTC(
       }
       existing?.close();
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection(iceConfigRef.current ?? FALLBACK_ICE);
       peers.set(socketId, pc);
 
       // Si estamos compartiendo pantalla, el nuevo peer recibe esa pista en lugar de la cámara
@@ -294,11 +284,24 @@ export function useWebRTC(
     s.on('webrtc:media-state', onMediaState);
     s.on('webrtc:screen-share', onScreenShare);
 
-    for (const peer of currentPeersRef.current) {
-      sendOffer(peer.socketId, peer.username);
-    }
+    let aborted = false;
+    (async () => {
+      if (!iceConfigRef.current) {
+        try {
+          const data = await api.get<{ iceServers: RTCIceServer[] }>('/api/rooms/ice-config');
+          if (!aborted) iceConfigRef.current = { iceServers: data.iceServers };
+        } catch {
+          if (!aborted) iceConfigRef.current = FALLBACK_ICE;
+        }
+      }
+      if (aborted) return;
+      for (const peer of currentPeersRef.current) {
+        sendOffer(peer.socketId, peer.username);
+      }
+    })();
 
     return () => {
+      aborted = true;
       s.off('room:user-joined', onUserJoined);
       s.off('room:user-left', onUserLeft);
       s.off('webrtc:offer', onOffer);
