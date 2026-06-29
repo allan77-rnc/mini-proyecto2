@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { IconMicOff, IconVideoOff } from '../../../components/icons';
+import { IconMicOff, IconVideoOff, IconMonitor } from '../../../components/icons';
 
 interface VideoTileProps {
   stream: MediaStream | null;
@@ -8,6 +8,7 @@ interface VideoTileProps {
   isLocal?: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing?: boolean;
   isSpeaking?: boolean;
 }
 
@@ -18,6 +19,7 @@ export function VideoTile({
   isLocal = false,
   audioEnabled,
   videoEnabled,
+  isScreenSharing = false,
   isSpeaking = false,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -67,9 +69,10 @@ export function VideoTile({
         </div>
       )}
 
-      {/* Name + mute badge */}
+      {/* Name + screen share indicator + mute badge */}
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-        <span className="bg-black/60 text-white text-xs px-2.5 py-1 rounded-lg font-medium backdrop-blur-sm leading-none">
+        <span className="bg-black/60 text-white text-xs px-2.5 py-1 rounded-lg font-medium backdrop-blur-sm leading-none flex items-center gap-1.5">
+          {isScreenSharing && <IconMonitor size={11} className="flex-shrink-0 text-teal-400" />}
           {username}{isLocal ? ' (Tú)' : ''}
         </span>
         {!audioEnabled && (
