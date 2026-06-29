@@ -9,6 +9,7 @@ export interface RemoteParticipant {
   stream: MediaStream | null;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing: boolean;
 }
 
 export interface PeerInfo {
@@ -16,6 +17,7 @@ export interface PeerInfo {
   username: string;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing: boolean;
 }
 
 const TURN_URL = (import.meta.env.VITE_TURN_URL as string | undefined) ?? 'openrelay.metered.ca';
@@ -27,7 +29,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   {
     urls: [
-      `turn:${TURN_URL}:3478`,    
+      `turn:${TURN_URL}:80`,
       `turn:${TURN_URL}:443`,
       `turns:${TURN_URL}:443`,
     ],
@@ -36,24 +38,31 @@ const ICE_SERVERS: RTCIceServer[] = [
   },
 ];
 
-/**
- * P2P video/audio via WebRTC, signaled through the backend Socket.io gateway.
- * socket and currentPeers come from RoomPage (shared socket — no duplicate join-room).
- */
 export function useWebRTC(
   socket: Socket | null,
   currentPeers: PeerInfo[],
   localStream: MediaStream | null,
 ): {
   participants: RemoteParticipant[];
+  isScreenSharing: boolean;
+  screenStream: MediaStream | null;
   broadcastMediaState: (audioEnabled: boolean, videoEnabled: boolean) => Promise<void>;
+  startScreenShare: () => Promise<void>;
+  stopScreenShare: () => Promise<void>;
 } {
   const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
   const currentPeersRef = useRef<PeerInfo[]>(currentPeers);
+  const localStreamRef = useRef<MediaStream | null>(localStream);
+  const peersRef = useRef(new Map<string, RTCPeerConnection>());
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => { currentPeersRef.current = currentPeers; }, [currentPeers]);
   useEffect(() => { socketRef.current = socket; }, [socket]);
+  useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
   const broadcastMediaState = useCallback(async (audioEnabled: boolean, videoEnabled: boolean) => {
     if (!socketRef.current) return;
@@ -61,22 +70,74 @@ export function useWebRTC(
     socketRef.current.emit('webrtc:media-state', { idToken, audioEnabled, videoEnabled });
   }, []);
 
+  const stopScreenShare = useCallback(async () => {
+    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    screenStreamRef.current = null;
+
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
+    peersRef.current.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) sender.replaceTrack(cameraTrack);
+    });
+
+    setIsScreenSharing(false);
+    setScreenStream(null);
+
+    const s = socketRef.current;
+    if (s) {
+      const idToken = await auth.currentUser?.getIdToken();
+      s.emit('webrtc:screen-share', { idToken, isSharing: false });
+    }
+  }, []);
+
+  const startScreenShare = useCallback(async () => {
+    let captureStream: MediaStream;
+    try {
+      captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    } catch {
+      return;
+    }
+
+    screenStreamRef.current = captureStream;
+    const screenTrack = captureStream.getVideoTracks()[0];
+
+    peersRef.current.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) sender.replaceTrack(screenTrack);
+    });
+
+    setIsScreenSharing(true);
+    setScreenStream(captureStream);
+
+    const s = socketRef.current;
+    if (s) {
+      const idToken = await auth.currentUser?.getIdToken();
+      s.emit('webrtc:screen-share', { idToken, isSharing: true });
+    }
+
+    screenTrack.onended = () => { stopScreenShare(); };
+  }, [stopScreenShare]);
+
   useEffect(() => {
     if (!socket || !localStream) {
       const raf = requestAnimationFrame(() => setParticipants([]));
       return () => cancelAnimationFrame(raf);
     }
 
-    const s = socket; // non-null (guarded above)
+    const s = socket;
     const stream = localStream;
-    const peers = new Map<string, RTCPeerConnection>();
+    const peers = peersRef.current;
     const pendingIce = new Map<string, RTCIceCandidateInit[]>();
+
+    // Close any stale connections from a previous effect run
+    peers.forEach(pc => pc.close());
+    peers.clear();
 
     function upsertParticipant(update: Partial<RemoteParticipant> & { userId: string }) {
       setParticipants(prev => {
         const i = prev.findIndex(p => p.userId === update.userId);
         if (i === -1) {
-          return [...prev, { stream: null, audioEnabled: true, videoEnabled: true, username: '', ...update }];
+          return [...prev, { stream: null, audioEnabled: true, videoEnabled: true, username: '', isScreenSharing: false, ...update }];
         }
         return prev.map((p, j) => (j === i ? { ...p, ...update } : p));
       });
@@ -126,7 +187,6 @@ export function useWebRTC(
         }
       };
 
-      // Flush any ICE candidates that arrived before the peer connection was ready
       (pendingIce.get(socketId) ?? []).forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)));
       pendingIce.delete(socketId);
 
@@ -151,7 +211,6 @@ export function useWebRTC(
     }
 
     function onUserJoined({ socketId, username }: { socketId: string; username: string }) {
-      // They will send us an offer; just add them to the list so the grid shows them
       upsertParticipant({ userId: socketId, username });
     }
 
@@ -162,7 +221,7 @@ export function useWebRTC(
     }
 
     async function onOffer({ fromSocketId, sdp }: { fromSocketId: string; sdp: RTCSessionDescriptionInit }) {
-      const pc = createPeer(fromSocketId, participants.find(p => p.userId === fromSocketId)?.username ?? '');
+      const pc = createPeer(fromSocketId, '');
       if (pc.signalingState !== 'stable') return;
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
@@ -199,14 +258,18 @@ export function useWebRTC(
       upsertParticipant({ userId: socketId, username, audioEnabled, videoEnabled });
     }
 
+    function onScreenShare({ socketId, isSharing }: { socketId: string; username: string; isSharing: boolean }) {
+      upsertParticipant({ userId: socketId, isScreenSharing: isSharing });
+    }
+
     s.on('room:user-joined', onUserJoined);
     s.on('room:user-left', onUserLeft);
     s.on('webrtc:offer', onOffer);
     s.on('webrtc:answer', onAnswer);
     s.on('webrtc:ice-candidate', onIce);
     s.on('webrtc:media-state', onMediaState);
+    s.on('webrtc:screen-share', onScreenShare);
 
-    // Send offers to all participants who were already in the room
     for (const peer of currentPeersRef.current) {
       sendOffer(peer.socketId, peer.username);
     }
@@ -218,11 +281,12 @@ export function useWebRTC(
       s.off('webrtc:answer', onAnswer);
       s.off('webrtc:ice-candidate', onIce);
       s.off('webrtc:media-state', onMediaState);
+      s.off('webrtc:screen-share', onScreenShare);
       peers.forEach(pc => pc.close());
+      peers.clear();
       setParticipants([]);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, localStream]);
 
-  return { participants, broadcastMediaState };
+  return { participants, isScreenSharing, screenStream, broadcastMediaState, startScreenShare, stopScreenShare };
 }

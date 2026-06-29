@@ -29,9 +29,11 @@ interface MediaControlsProps {
   videoEnabled: boolean;
   chatOpen: boolean;
   audioLevel: number;
+  isScreenSharing: boolean;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleChat: () => void;
+  onToggleScreenShare: () => void;
   onLeave: () => void;
 }
 
@@ -40,9 +42,11 @@ export function MediaControls({
   videoEnabled,
   chatOpen,
   audioLevel,
+  isScreenSharing,
   onToggleAudio,
   onToggleVideo,
   onToggleChat,
+  onToggleScreenShare,
   onLeave,
 }: MediaControlsProps) {
   return (
@@ -78,11 +82,15 @@ export function MediaControls({
           {videoEnabled ? <IconVideo size={18} /> : <IconVideoOff size={18} />}
         </button>
 
-        {/* Screen share — disabled */}
+        {/* Screen share */}
         <button
-          disabled
-          title="Compartir pantalla (próximamente)"
-          className="w-11 h-11 rounded-full flex items-center justify-center bg-gray-700 text-gray-500 cursor-not-allowed"
+          onClick={onToggleScreenShare}
+          title={isScreenSharing ? 'Dejar de compartir' : 'Compartir pantalla'}
+          className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+            isScreenSharing
+              ? 'bg-teal-500 hover:bg-teal-400 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-white'
+          }`}
         >
           <IconMonitor size={18} />
         </button>

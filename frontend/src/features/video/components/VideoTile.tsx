@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { IconMicOff, IconVideoOff } from '../../../components/icons';
+import { IconMicOff, IconVideoOff, IconMonitor } from '../../../components/icons';
 
 interface VideoTileProps {
   stream: MediaStream | null;
@@ -8,6 +8,7 @@ interface VideoTileProps {
   isLocal?: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  isScreenSharing?: boolean;
   isSpeaking?: boolean;
 }
 
@@ -18,6 +19,7 @@ export function VideoTile({
   isLocal = false,
   audioEnabled,
   videoEnabled,
+  isScreenSharing = false,
   isSpeaking = false,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -29,7 +31,7 @@ export function VideoTile({
   }, [stream]);
 
   const initials = username.slice(0, 2).toUpperCase();
-  const showVideo = !!stream && videoEnabled;
+  const showVideo = !!stream && (videoEnabled || isScreenSharing);
 
   return (
     <div
@@ -64,6 +66,15 @@ export function VideoTile({
               <IconVideoOff size={12} /> Cámara apagada
             </span>
           )}
+        </div>
+      )}
+
+      {/* Screen share badge */}
+      {isScreenSharing && (
+        <div className="absolute top-2 left-2">
+          <span className="flex items-center gap-1 bg-teal-500/90 text-white text-[10px] px-2 py-1 rounded-lg font-semibold backdrop-blur-sm">
+            <IconMonitor size={11} /> Compartiendo pantalla
+          </span>
         </div>
       )}
 
